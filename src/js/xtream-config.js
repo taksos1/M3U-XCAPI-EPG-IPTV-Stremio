@@ -314,7 +314,7 @@
             const passHash = await sha256Fragment(password);
             appendDetail(`Password hash fragment: ${passHash}`);
 
-            const { manifestUrl, stremioUrl } = buildUrls(config);
+            const { manifestUrl, stremioUrl } = await buildUrls(config);
             appendDetail('✔ Token built');
             appendDetail('Manifest URL: ' + manifestUrl);
             appendDetail('Stremio URL: ' + stremioUrl);
