@@ -37,7 +37,13 @@ async function fetchData(addonInstance) {
         });
         if (!resp.ok) throw new Error('Xtream M3U fetch failed');
         const text = await resp.text();
+        console.log('[DEBUG] M3U response length:', text.length);
         const items = addonInstance.parseM3U(text);
+        console.log('[DEBUG] Total M3U items parsed:', items.length);
+        console.log('[DEBUG] Item types:', items.map(i => i.type).reduce((acc, type) => {
+            acc[type] = (acc[type] || 0) + 1;
+            return acc;
+        }, {}));
 
         addonInstance.channels = items.filter(i => i.type === 'tv');
         addonInstance.movies = items.filter(i => i.type === 'movie');
