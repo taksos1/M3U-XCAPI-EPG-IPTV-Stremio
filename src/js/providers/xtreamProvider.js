@@ -192,62 +192,73 @@ async function fetchData(addonInstance) {
                 console.log(`[DEBUG] Added episode: ${sc.name} -> S${season}E${episode} to series ${baseName}`);
             }
             
-            // Fallback grouping for items that might be series but didn't match patterns
-            const remainingItems = items.filter(i => i.type === 'tv' && !i.name.toLowerCase().includes('live'));
+            // AGGRESSIVE fallback grouping for lionzhd - group ALL remaining non-movie, non-live content as series
+            const remainingItems = items.filter(i => 
+                i.type === 'tv' && 
+                !i.name.toLowerCase().includes('live') &&
+                !i.name.toLowerCase().includes('news') &&
+                !i.name.toLowerCase().includes('sport') &&
+                !i.category?.toLowerCase().includes('live') &&
+                !i.category?.toLowerCase().includes('news') &&
+                !i.category?.toLowerCase().includes('sport') &&
+                i.name.length > 3
+            );
+            
             const fallbackSeries = new Map();
             
             for (const item of remainingItems) {
-                // Try to find potential series by similar names
+                // Aggressive series name extraction for lionzhd
                 let potentialSeriesName = item.name;
                 
-                // Remove common suffixes that might indicate episodes
+                // Remove all possible episode indicators
                 potentialSeriesName = potentialSeriesName.replace(/\s*[-_\|]\s*\d+\s*$/, '').trim();
                 potentialSeriesName = potentialSeriesName.replace(/\s*\d+\s*$/, '').trim();
-                potentialSeriesName = potentialSeriesName.replace(/\s*HD\s*$/, '').trim();
-                potentialSeriesName = potentialSeriesName.replace(/\s*FHD\s*$/, '').trim();
-                potentialSeriesName = potentialSeriesName.replace(/\s*4K\s*$/, '').trim();
+                potentialSeriesName = potentialSeriesName.replace(/\s*HD\s*$/i, '').trim();
+                potentialSeriesName = potentialSeriesName.replace(/\s*FHD\s*$/i, '').trim();
+                potentialSeriesName = potentialSeriesName.replace(/\s*4K\s*$/i, '').trim();
+                potentialSeriesName = potentialSeriesName.replace(/\s*UHD\s*$/i, '').trim();
+                potentialSeriesName = potentialSeriesName.replace(/\s*\(\d{4}\)\s*$/, '').trim(); // Remove year
+                potentialSeriesName = potentialSeriesName.replace(/\s*\[\d+p\]\s*$/i, '').trim(); // Remove resolution
                 
-                // Only consider as potential series if name is long enough and contains certain keywords
-                if (potentialSeriesName.length > 3 && 
-                    (item.category?.toLowerCase().includes('show') || 
-                     item.category?.toLowerCase().includes('series') ||
-                     item.category?.toLowerCase().includes('drama') ||
-                     item.category?.toLowerCase().includes('comedy'))) {
-                    
-                    const fallbackId = cryptoHash(potentialSeriesName);
-                    
-                    if (!seen.has(potentialSeriesName) && !fallbackSeries.has(potentialSeriesName)) {
-                        fallbackSeries.set(potentialSeriesName, {
-                            id: `iptv_series_${fallbackId}`,
-                            series_id: fallbackId,
-                            name: potentialSeriesName,
-                            type: 'series',
-                            poster: item.logo || item.attributes?.['tvg-logo'],
-                            plot: `Series: ${potentialSeriesName}`,
-                            category: item.category,
-                            attributes: {
-                                'tvg-logo': item.logo || item.attributes?.['tvg-logo'],
-                                'group-title': item.category || item.attributes?.['group-title'],
-                                'plot': `Series: ${potentialSeriesName}`
-                            }
-                        });
-                        episodesBySeriesId.set(fallbackId, []);
-                        console.log(`[DEBUG] Created fallback series: ${potentialSeriesName} (ID: ${fallbackId})`);
-                    }
-                    
-                    // Add as episode
-                    const episodes = episodesBySeriesId.get(fallbackId);
-                    const episodeData = {
-                        id: `iptv_series_ep_${cryptoHash(item.name + item.url)}`,
-                        title: item.name,
-                        season: 1,
-                        episode: episodes.length + 1,
-                        url: item.url,
-                        thumbnail: item.logo || item.attributes?.['tvg-logo']
-                    };
-                    episodes.push(episodeData);
-                    console.log(`[DEBUG] Added fallback episode: ${item.name} -> S1E${episodes.length} to series ${potentialSeriesName}`);
+                // If name becomes too short, use original but still try to group
+                if (potentialSeriesName.length < 3) {
+                    potentialSeriesName = item.name;
                 }
+                
+                // Create series for EVERYTHING that's not clearly live/news/sports
+                const fallbackId = cryptoHash(potentialSeriesName);
+                
+                if (!seen.has(potentialSeriesName) && !fallbackSeries.has(potentialSeriesName)) {
+                    fallbackSeries.set(potentialSeriesName, {
+                        id: `iptv_series_${fallbackId}`,
+                        series_id: fallbackId,
+                        name: potentialSeriesName,
+                        type: 'series',
+                        poster: item.logo || item.attributes?.['tvg-logo'],
+                        plot: `Series: ${potentialSeriesName}`,
+                        category: item.category || 'Series',
+                        attributes: {
+                            'tvg-logo': item.logo || item.attributes?.['tvg-logo'],
+                            'group-title': item.category || item.attributes?.['group-title'] || 'Series',
+                            'plot': `Series: ${potentialSeriesName}`
+                        }
+                    });
+                    episodesBySeriesId.set(fallbackId, []);
+                    console.log(`[DEBUG] Created aggressive fallback series: ${potentialSeriesName} (ID: ${fallbackId})`);
+                }
+                
+                // Add as episode
+                const episodes = episodesBySeriesId.get(fallbackId);
+                const episodeData = {
+                    id: `iptv_series_ep_${cryptoHash(item.name + item.url)}`,
+                    title: item.name,
+                    season: 1,
+                    episode: episodes.length + 1,
+                    url: item.url,
+                    thumbnail: item.logo || item.attributes?.['tvg-logo']
+                };
+                episodes.push(episodeData);
+                console.log(`[DEBUG] Added aggressive fallback episode: ${item.name} -> S1E${episodes.length} to series ${potentialSeriesName}`);
             }
             
             // Merge fallback series with main series
