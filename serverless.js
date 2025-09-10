@@ -19,7 +19,7 @@ const INTERFACE_TTL_MS = parseInt(process.env.CACHE_TTL_MS || (6 * 3600 * 1000).
 const interfaceCache = new LRUCache({ max: parseInt(process.env.MAX_CACHE_ENTRIES || '100', 10), ttl: INTERFACE_TTL_MS });
 const CACHE_ENABLED = (process.env.CACHE_ENABLED || 'true').toLowerCase() !== 'false';
 
-const PREFETCH_MAX_BYTES = parseInt(process.env.PREFETCH_MAX_BYTES || '25000000', 10);
+const PREFETCH_MAX_BYTES = parseInt(process.env.PREFETCH_MAX_BYTES || '50000000', 10);
 const PREFETCH_ENABLED = (process.env.PREFETCH_ENABLED || 'true').toLowerCase() !== 'false';
 
 const app = express();
@@ -201,35 +201,57 @@ app.get('/:token/configure-xtream', (req, res) => {
 // Token interface middleware
 app.use('/:token', async (req, res, next) => {
     const { token } = req.params;
-    if (!isConfigToken(token)) return next('route');
+    
+    console.log(`[SERVERLESS] Request: ${req.method} ${req.originalUrl}`);
+    console.log(`[SERVERLESS] Token: ${token}`);
+    
+    if (!isConfigToken(token)) {
+        console.log(`[SERVERLESS] Invalid token format: ${token}`);
+        return next('route');
+    }
+    
     if (req.path.startsWith('/configure')) return next();
 
     let config;
     try {
         config = maybeDecryptConfig(token);
+        console.log(`[SERVERLESS] Config parsed successfully for token: ${token.substring(0, 10)}...`);
     } catch (e) {
-        dlog('Config parse failed', token, e.message);
-        return res.status(400).json({ error: 'Invalid configuration token' });
+        console.error('[SERVERLESS] Config parse failed:', token, e.message);
+        return res.status(400).json({ error: 'Invalid configuration token', details: e.message });
     }
+    
     if (!config.provider) config.provider = config.useXtream ? 'xtream' : 'direct';
     if (DEBUG && config.debug !== false) config.debug = true;
 
     const ifaceKey = 'iface:' + crypto.createHash('md5').update(token).digest('hex');
 
+    async function redisGet(key) {
+        if (!CACHE_ENABLED || !redisClient) return null;
+        try { return await redisClient.get(key); } catch { return null; }
+    }
+    async function redisSet(key, ttl) {
+        if (!CACHE_ENABLED || !redisClient) return;
+        try { await redisClient.set(key, '1', 'PX', ttl); } catch { }
+    }
+
     let iface = CACHE_ENABLED ? interfaceCache.get(ifaceKey) : null;
     if (!iface) {
+        await redisGet(ifaceKey);
         try {
-            dlog('Building addon interface (cache miss)', ifaceKey);
+            console.log(`[SERVERLESS] Building addon interface (cache miss) for: ${ifaceKey}`);
             iface = await createAddon(config);
             if (CACHE_ENABLED) {
                 interfaceCache.set(ifaceKey, iface);
+                await redisSet(ifaceKey, INTERFACE_TTL_MS);
             }
+            console.log(`[SERVERLESS] Addon interface built successfully`);
         } catch (e) {
             console.error('[SERVERLESS] Addon build failed:', e);
-            return res.status(500).json({ error: 'Addon build error' });
+            return res.status(500).json({ error: 'Addon build error', details: e.message, stack: e.stack });
         }
     } else {
-        dlog('Interface cache hit', ifaceKey);
+        console.log(`[SERVERLESS] Interface cache hit: ${ifaceKey}`);
     }
 
     req.addonInterface = iface;
@@ -289,11 +311,30 @@ app.use('/:token', (req, res) => {
     });
 });
 
-app.use('*', (req, res) => res.status(404).json({ error: 'Not found' }));
+// Health check endpoint
+app.get('/health', (req, res) => {
+    res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// Root endpoint
+app.get('/', (req, res) => {
+    res.json({ 
+        name: 'M3U/EPG IPTV Stremio Addon', 
+        version: '1.4.0',
+        status: 'running',
+        endpoints: ['/configure', '/health']
+    });
+});
+
+app.use('*', (req, res) => {
+    console.log(`[404] ${req.method} ${req.originalUrl}`);
+    res.status(404).json({ error: 'Not found', path: req.originalUrl });
+});
 
 app.use((error, req, res, next) => {
     console.error('[SERVERLESS] Unhandled error:', error);
     if (!res.headersSent) res.status(500).json({ error: 'Internal server error' });
 });
 
+// Export for Vercel
 module.exports = app;
