@@ -19,7 +19,7 @@ const INTERFACE_TTL_MS = parseInt(process.env.CACHE_TTL_MS || (6 * 3600 * 1000).
 const interfaceCache = new LRUCache({ max: parseInt(process.env.MAX_CACHE_ENTRIES || '100', 10), ttl: INTERFACE_TTL_MS });
 const CACHE_ENABLED = (process.env.CACHE_ENABLED || 'true').toLowerCase() !== 'false';
 
-const PREFETCH_MAX_BYTES = parseInt(process.env.PREFETCH_MAX_BYTES || '5000000', 10);
+const PREFETCH_MAX_BYTES = parseInt(process.env.PREFETCH_MAX_BYTES || '15000000', 10);
 const PREFETCH_ENABLED = (process.env.PREFETCH_ENABLED || 'true').toLowerCase() !== 'false';
 
 const app = express();
