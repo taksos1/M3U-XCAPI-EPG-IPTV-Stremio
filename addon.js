@@ -253,11 +253,19 @@ class M3UEPGAddon {
                     !isMovie && (
                         group.includes('series') ||
                         group.includes('show') ||
+                        group.includes('tv show') ||
+                        group.includes('episode') ||
                         /\bS\d{1,2}E\d{1,2}\b/i.test(currentItem.name) ||
-                        /\bSeason\s?\d+/i.test(currentItem.name)
+                        /\bSeason\s?\d+/i.test(currentItem.name) ||
+                        /\bEpisode\s?\d+/i.test(currentItem.name) ||
+                        /\b\d{1,2}x\d{1,2}\b/i.test(currentItem.name)
                     );
 
                 currentItem.type = isSeries ? 'series' : (isMovie ? 'movie' : 'tv');
+                
+                if (this.config.debug) {
+                    console.log(`[DEBUG] Item: ${currentItem.name} | Group: ${group} | Type: ${currentItem.type} | isSeries: ${isSeries} | isMovie: ${isMovie}`);
+                }
                 currentItem.id = `iptv_${crypto.createHash('md5').update(currentItem.name + currentItem.url).digest('hex').substring(0, 16)}`;
                 items.push(currentItem);
                 currentItem = null;
