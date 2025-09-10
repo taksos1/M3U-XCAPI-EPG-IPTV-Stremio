@@ -44,6 +44,24 @@ async function fetchData(addonInstance) {
 
         if (config.includeSeries !== false) {
             const seriesCandidates = items.filter(i => i.type === 'series');
+            console.log('[DEBUG] M3U Series candidates found:', seriesCandidates.length);
+            
+            // If no series found in M3U, try to detect from all items
+            if (seriesCandidates.length === 0) {
+                console.log('[DEBUG] No series type items found, checking all items for series patterns...');
+                const allSeriesCandidates = items.filter(item => {
+                    const name = item.name.toLowerCase();
+                    const group = (item.category || item.attributes?.['group-title'] || '').toLowerCase();
+                    return group.includes('series') || 
+                           group.includes('show') || 
+                           group.includes('tv show') ||
+                           /\bS\d{1,2}E\d{1,2}\b/i.test(item.name) ||
+                           /\bSeason\s?\d+/i.test(item.name);
+                });
+                console.log('[DEBUG] Found series patterns in:', allSeriesCandidates.length, 'items');
+                seriesCandidates.push(...allSeriesCandidates.map(item => ({...item, type: 'series'})));
+            }
+            
             // Reduce duplication by grouping by cleaned series name
             const seen = new Map();
             const episodesBySeriesId = new Map();
@@ -93,6 +111,9 @@ async function fetchData(addonInstance) {
             addonInstance.series = Array.from(seen.values());
             // Store episodes for m3u_plus mode
             addonInstance.directSeriesEpisodeIndex = episodesBySeriesId;
+            
+            console.log('[DEBUG] Final series count:', addonInstance.series.length);
+            console.log('[DEBUG] Episode index size:', episodesBySeriesId.size);
         }
     } else {
         // JSON API mode
