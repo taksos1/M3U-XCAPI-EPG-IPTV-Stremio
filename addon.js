@@ -621,8 +621,16 @@ class M3UEPGAddon {
 
     async getDetailedMetaAsync(id, type) {
         if (type === 'series' || id.startsWith('iptv_series_')) {
+            console.log(`[DEBUG] getDetailedMetaAsync called with id: ${id}, type: ${type}`);
+            console.log(`[DEBUG] Available series:`, this.series.map(s => ({ id: s.id, name: s.name, series_id: s.series_id })));
+            
             const seriesItem = this.series.find(s => s.id === id);
-            if (!seriesItem) return null;
+            if (!seriesItem) {
+                console.log(`[DEBUG] No series found with id: ${id}`);
+                return null;
+            }
+            
+            console.log(`[DEBUG] Found series item:`, { id: seriesItem.id, name: seriesItem.name, series_id: seriesItem.series_id });
             return await this.buildSeriesMeta(seriesItem);
         }
         // fallback sync path
@@ -753,8 +761,13 @@ async function createAddon(config) {
                 } else if (args.type === 'movie' && args.id === 'iptv_movies') {
                     items = addonInstance.movies;
                 } else if (args.type === 'series' && args.id === 'iptv_series') {
-                    if (addonInstance.config.includeSeries !== false)
+                    if (addonInstance.config.includeSeries !== false) {
                         items = addonInstance.series;
+                        console.log(`[DEBUG] Catalog: Found ${items.length} series items`);
+                        if (items.length > 0) {
+                            console.log(`[DEBUG] First series:`, { id: items[0].id, name: items[0].name, series_id: items[0].series_id });
+                        }
+                    }
                 }
                 const extra = args.extra || {};
                 if (extra.genre && extra.genre !== 'All Channels') {
@@ -808,11 +821,35 @@ async function createAddon(config) {
 
         builder.defineMetaHandler(async ({ type, id }) => {
             try {
+                console.log(`[DEBUG] Meta handler called with type: ${type}, id: ${id}`);
+                
                 if (type === 'series' || id.startsWith('iptv_series_')) {
                     const meta = await addonInstance.getDetailedMetaAsync(id, 'series');
-                    if (addonInstance.config.debug) {
-                        console.log('[DEBUG] Series meta request', { id, videos: meta?.videos?.length });
+                    console.log(`[DEBUG] Series meta result:`, { 
+                        id, 
+                        metaFound: !!meta, 
+                        videos: meta?.videos?.length || 0,
+                        metaName: meta?.name 
+                    });
+                    
+                    // If no meta found, return a basic structure to avoid "No metadata found"
+                    if (!meta) {
+                        const fallbackSeries = addonInstance.series.find(s => s.id === id);
+                        if (fallbackSeries) {
+                            return {
+                                meta: {
+                                    id: fallbackSeries.id,
+                                    type: 'series',
+                                    name: fallbackSeries.name,
+                                    poster: fallbackSeries.poster || `https://via.placeholder.com/300x450/3366CC/FFFFFF?text=${encodeURIComponent(fallbackSeries.name)}`,
+                                    description: fallbackSeries.plot || 'Series',
+                                    genres: [fallbackSeries.category || 'Series'],
+                                    videos: [] // Empty but present
+                                }
+                            };
+                        }
                     }
+                    
                     return { meta };
                 }
                 const meta = addonInstance.getDetailedMeta(id);
