@@ -162,9 +162,10 @@ function maybeDecryptConfig(token) {
 }
 
 function isConfigToken(token) {
-    const isValid = token && token.length > 10 && /^[A-Za-z0-9+/=]+$/.test(token);
-    console.log(`[SERVERLESS] Token validation: ${token?.substring(0, 20)}... -> ${isValid}`);
-    return isValid;
+    if (!token) return false;
+    if (token.startsWith('enc:')) return true;
+    if (token.length < 4) return false;
+    return true;
 }
 
 // Legacy redirect
@@ -200,57 +201,35 @@ app.get('/:token/configure-xtream', (req, res) => {
 // Token interface middleware
 app.use('/:token', async (req, res, next) => {
     const { token } = req.params;
-    
-    console.log(`[SERVERLESS] Request: ${req.method} ${req.originalUrl}`);
-    console.log(`[SERVERLESS] Token: ${token}`);
-    
-    if (!isConfigToken(token)) {
-        console.log(`[SERVERLESS] Invalid token format: ${token}`);
-        return next('route');
-    }
-    
+    if (!isConfigToken(token)) return next('route');
     if (req.path.startsWith('/configure')) return next();
 
     let config;
     try {
         config = maybeDecryptConfig(token);
-        console.log(`[SERVERLESS] Config parsed successfully for token: ${token.substring(0, 10)}...`);
     } catch (e) {
-        console.error('[SERVERLESS] Config parse failed:', token, e.message);
-        return res.status(400).json({ error: 'Invalid configuration token', details: e.message });
+        dlog('Config parse failed', token, e.message);
+        return res.status(400).json({ error: 'Invalid configuration token' });
     }
-    
     if (!config.provider) config.provider = config.useXtream ? 'xtream' : 'direct';
     if (DEBUG && config.debug !== false) config.debug = true;
 
     const ifaceKey = 'iface:' + crypto.createHash('md5').update(token).digest('hex');
 
-    async function redisGet(key) {
-        if (!CACHE_ENABLED || !redisClient) return null;
-        try { return await redisClient.get(key); } catch { return null; }
-    }
-    async function redisSet(key, ttl) {
-        if (!CACHE_ENABLED || !redisClient) return;
-        try { await redisClient.set(key, '1', 'PX', ttl); } catch { }
-    }
-
     let iface = CACHE_ENABLED ? interfaceCache.get(ifaceKey) : null;
     if (!iface) {
-        await redisGet(ifaceKey);
         try {
-            console.log(`[SERVERLESS] Building addon interface (cache miss) for: ${ifaceKey}`);
+            dlog('Building addon interface (cache miss)', ifaceKey);
             iface = await createAddon(config);
             if (CACHE_ENABLED) {
                 interfaceCache.set(ifaceKey, iface);
-                await redisSet(ifaceKey, INTERFACE_TTL_MS);
             }
-            console.log(`[SERVERLESS] Addon interface built successfully`);
         } catch (e) {
             console.error('[SERVERLESS] Addon build failed:', e);
-            return res.status(500).json({ error: 'Addon build error', details: e.message, stack: e.stack });
+            return res.status(500).json({ error: 'Addon build error' });
         }
     } else {
-        console.log(`[SERVERLESS] Interface cache hit: ${ifaceKey}`);
+        dlog('Interface cache hit', ifaceKey);
     }
 
     req.addonInterface = iface;
@@ -297,68 +276,24 @@ app.get('/:token/logo/:tvgId.png', async (req, res) => {
 // Stremio router
 app.use('/:token', (req, res) => {
     const iface = req.addonInterface;
-    if (!iface) {
-        console.error('[SERVERLESS] Interface not ready for token:', req.params.token);
-        return res.status(500).json({ error: 'Interface not ready' });
-    }
+    if (!iface) return res.status(500).json({ error: 'Interface not ready' });
 
-    console.log(`[SERVERLESS] Routing request: ${req.method} ${req.path}`);
-    
     const router = getRouter(iface);
     router(req, res, (err) => {
         if (err) {
             console.error('[SERVERLESS] Router error:', err);
-            res.status(500).json({ error: 'Addon error', details: err.message });
+            res.status(500).json({ error: 'Addon error' });
         } else {
-            console.log(`[SERVERLESS] Route not found: ${req.method} ${req.path}`);
-            res.status(404).json({ error: 'Not found', path: req.path });
+            res.status(404).json({ error: 'Not found' });
         }
     });
 });
 
-// Health check endpoint
-app.get('/health', (req, res) => {
-    res.json({ status: 'ok', timestamp: new Date().toISOString() });
-});
-
-// Root endpoint
-app.get('/', (req, res) => {
-    res.json({ 
-        name: 'M3U/EPG IPTV Stremio Addon', 
-        version: '1.4.0',
-        status: 'running',
-        endpoints: ['/configure', '/health'],
-        timestamp: new Date().toISOString()
-    });
-});
-
-// Test manifest endpoint
-app.get('/test-manifest', (req, res) => {
-    const testManifest = {
-        id: 'org.stremio.m3u-epg-addon.test',
-        version: '1.4.0',
-        name: 'M3U/EPG TV Addon (Test)',
-        description: 'Test manifest for IPTV addon',
-        resources: ['catalog', 'meta', 'stream'],
-        types: ['tv', 'movie', 'series'],
-        catalogs: [
-            { type: 'tv', id: 'iptv_channels', name: 'IPTV Channels' },
-            { type: 'movie', id: 'iptv_movies', name: 'IPTV Movies' },
-            { type: 'series', id: 'iptv_series', name: 'IPTV Series' }
-        ]
-    };
-    res.json(testManifest);
-});
-
-app.use('*', (req, res) => {
-    console.log(`[404] ${req.method} ${req.originalUrl}`);
-    res.status(404).json({ error: 'Not found', path: req.originalUrl });
-});
+app.use('*', (req, res) => res.status(404).json({ error: 'Not found' }));
 
 app.use((error, req, res, next) => {
     console.error('[SERVERLESS] Unhandled error:', error);
     if (!res.headersSent) res.status(500).json({ error: 'Internal server error' });
 });
 
-// Export for Vercel
 module.exports = app;
