@@ -44,18 +44,14 @@ async function fetchData(addonInstance) {
 
         if (config.includeSeries !== false) {
             const seriesCandidates = items.filter(i => i.type === 'series');
-            // Reduce duplication by grouping by cleaned series name and collect episodes
+            // Reduce duplication by grouping by cleaned series name
             const seen = new Map();
-            const episodesBySeriesId = new Map();
-            
             for (const sc of seriesCandidates) {
                 const baseName = sc.name.replace(/\bS\d{1,2}E\d{1,2}\b.*$/i, '').trim();
-                const seriesId = cryptoHash(baseName);
-                
                 if (!seen.has(baseName)) {
                     seen.set(baseName, {
-                        id: `iptv_series_${seriesId}`,
-                        series_id: seriesId,
+                        id: `iptv_series_${cryptoHash(baseName)}`,
+                        series_id: cryptoHash(baseName),
                         name: baseName,
                         type: 'series',
                         poster: sc.logo || sc.attributes?.['tvg-logo'],
@@ -67,35 +63,9 @@ async function fetchData(addonInstance) {
                             'plot': sc.attributes?.['plot'] || ''
                         }
                     });
-                    episodesBySeriesId.set(seriesId, []);
                 }
-                
-                // Parse episode info from title
-                const episodeMatch = sc.name.match(/\bS(\d{1,2})E(\d{1,2})\b/i);
-                let season = 1, episode = 1;
-                if (episodeMatch) {
-                    season = parseInt(episodeMatch[1], 10);
-                    episode = parseInt(episodeMatch[2], 10);
-                }
-                
-                // Add episode to the series
-                const episodes = episodesBySeriesId.get(seriesId);
-                episodes.push({
-                    id: `iptv_series_ep_${cryptoHash(sc.name + sc.url)}`,
-                    title: sc.name,
-                    season: season,
-                    episode: episode,
-                    url: sc.url,
-                    thumbnail: sc.logo || sc.attributes?.['tvg-logo']
-                });
             }
-            
             addonInstance.series = Array.from(seen.values());
-            
-            // Store episodes for each series in the direct series episode index
-            for (const [seriesId, episodes] of episodesBySeriesId.entries()) {
-                addonInstance.directSeriesEpisodeIndex.set(seriesId, episodes);
-            }
         }
     } else {
         // JSON API mode
@@ -241,17 +211,9 @@ async function fetchData(addonInstance) {
 }
 
 async function fetchSeriesInfo(addonInstance, seriesId) {
+    // For xtream JSON API only
     const { config } = addonInstance;
     if (!seriesId) return { videos: [] };
-    
-    // For m3u_plus mode, use the direct series episode index
-    if (config.xtreamUseM3U) {
-        const episodes = addonInstance.directSeriesEpisodeIndex.get(seriesId) || [];
-        const videos = episodes.sort((a, b) => (a.season - b.season) || (a.episode - b.episode));
-        return { videos, fetchedAt: Date.now() };
-    }
-    
-    // For JSON API mode
     if (!config || !config.xtreamUrl || !config.xtreamUsername || !config.xtreamPassword) return { videos: [] };
 
     const base = `${config.xtreamUrl}/player_api.php?username=${encodeURIComponent(config.xtreamUsername)}&password=${encodeURIComponent(config.xtreamPassword)}`;
