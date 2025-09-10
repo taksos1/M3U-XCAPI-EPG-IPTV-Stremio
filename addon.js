@@ -745,10 +745,18 @@ async function createAddon(config) {
     }
 
     const buildPromise = (async () => {
+        console.log(`[ADDON] Creating addon with manifest:`, JSON.stringify(manifest, null, 2));
+        
         const builder = new addonBuilder(manifest);
         const addonInstance = new M3UEPGAddon(config, manifest);
+        
+        console.log(`[ADDON] Loading from cache...`);
         await addonInstance.loadFromCache();
+        
+        console.log(`[ADDON] Updating data...`);
         await addonInstance.updateData(true);
+        
+        console.log(`[ADDON] Building genres...`);
         addonInstance.buildGenresInManifest();
 
         builder.defineCatalogHandler(async (args) => {
@@ -863,13 +871,19 @@ async function createAddon(config) {
             }
         });
 
-        return builder.getInterface();
+        const iface = builder.getInterface();
+        console.log(`[ADDON] Interface created successfully. Manifest:`, iface.manifest);
+        return iface;
     })();
 
     if (CACHE_ENABLED) buildPromiseCache.set(cacheKey, buildPromise);
     try {
         const iface = await buildPromise;
+        console.log(`[ADDON] Final interface ready with manifest ID:`, iface.manifest?.id);
         return iface;
+    } catch (error) {
+        console.error(`[ADDON] Build failed:`, error);
+        throw error;
     } finally {
         // Keep promise cached
     }
