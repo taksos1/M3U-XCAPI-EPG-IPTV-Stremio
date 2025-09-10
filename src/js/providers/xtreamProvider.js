@@ -44,12 +44,24 @@ async function fetchData(addonInstance) {
 
         if (config.includeSeries !== false) {
             const seriesCandidates = items.filter(i => i.type === 'series');
+            console.log(`[DEBUG] Found ${seriesCandidates.length} series candidates`);
+            
             // Reduce duplication by grouping by cleaned series name and collect episodes
             const seen = new Map();
             const episodesBySeriesId = new Map();
             
             for (const sc of seriesCandidates) {
-                const baseName = sc.name.replace(/\bS\d{1,2}E\d{1,2}\b.*$/i, '').trim();
+                // More flexible series name cleaning
+                let baseName = sc.name;
+                
+                // Remove common episode patterns
+                baseName = baseName.replace(/\bS\d{1,2}E\d{1,2}\b.*$/i, '').trim();
+                baseName = baseName.replace(/\bSeason\s*\d+.*$/i, '').trim();
+                baseName = baseName.replace(/\bEpisode\s*\d+.*$/i, '').trim();
+                baseName = baseName.replace(/\b\d{1,2}x\d{1,2}\b.*$/i, '').trim();
+                
+                if (!baseName) baseName = sc.name; // Fallback to original name
+                
                 const seriesId = cryptoHash(baseName);
                 
                 if (!seen.has(baseName)) {
@@ -59,35 +71,58 @@ async function fetchData(addonInstance) {
                         name: baseName,
                         type: 'series',
                         poster: sc.logo || sc.attributes?.['tvg-logo'],
-                        plot: sc.attributes?.['plot'] || '',
+                        plot: sc.attributes?.['plot'] || `Series: ${baseName}`,
                         category: sc.category,
                         attributes: {
                             'tvg-logo': sc.logo || sc.attributes?.['tvg-logo'],
                             'group-title': sc.category || sc.attributes?.['group-title'],
-                            'plot': sc.attributes?.['plot'] || ''
+                            'plot': sc.attributes?.['plot'] || `Series: ${baseName}`
                         }
                     });
                     episodesBySeriesId.set(seriesId, []);
+                    console.log(`[DEBUG] Created series: ${baseName} (ID: ${seriesId})`);
                 }
                 
-                // Parse episode info from title
-                const episodeMatch = sc.name.match(/\bS(\d{1,2})E(\d{1,2})\b/i);
+                // Parse episode info from title - more flexible patterns
                 let season = 1, episode = 1;
+                
+                // Try S01E01 pattern
+                let episodeMatch = sc.name.match(/\bS(\d{1,2})E(\d{1,2})\b/i);
                 if (episodeMatch) {
                     season = parseInt(episodeMatch[1], 10);
                     episode = parseInt(episodeMatch[2], 10);
+                } else {
+                    // Try Season X Episode Y pattern
+                    episodeMatch = sc.name.match(/\bSeason\s*(\d+).*?Episode\s*(\d+)\b/i);
+                    if (episodeMatch) {
+                        season = parseInt(episodeMatch[1], 10);
+                        episode = parseInt(episodeMatch[2], 10);
+                    } else {
+                        // Try 1x01 pattern
+                        episodeMatch = sc.name.match(/\b(\d{1,2})x(\d{1,2})\b/i);
+                        if (episodeMatch) {
+                            season = parseInt(episodeMatch[1], 10);
+                            episode = parseInt(episodeMatch[2], 10);
+                        } else {
+                            // Default: treat each item as episode 1 of season 1
+                            episode = episodesBySeriesId.get(seriesId).length + 1;
+                        }
+                    }
                 }
                 
                 // Add episode to the series
                 const episodes = episodesBySeriesId.get(seriesId);
-                episodes.push({
+                const episodeData = {
                     id: `iptv_series_ep_${cryptoHash(sc.name + sc.url)}`,
                     title: sc.name,
                     season: season,
                     episode: episode,
                     url: sc.url,
                     thumbnail: sc.logo || sc.attributes?.['tvg-logo']
-                });
+                };
+                episodes.push(episodeData);
+                
+                console.log(`[DEBUG] Added episode: ${sc.name} -> S${season}E${episode} to series ${baseName}`);
             }
             
             addonInstance.series = Array.from(seen.values());
@@ -95,7 +130,10 @@ async function fetchData(addonInstance) {
             // Store episodes for each series in the direct series episode index
             for (const [seriesId, episodes] of episodesBySeriesId.entries()) {
                 addonInstance.directSeriesEpisodeIndex.set(seriesId, episodes);
+                console.log(`[DEBUG] Stored ${episodes.length} episodes for series ID: ${seriesId}`);
             }
+            
+            console.log(`[DEBUG] Total series created: ${addonInstance.series.length}`);
         }
     } else {
         // JSON API mode
