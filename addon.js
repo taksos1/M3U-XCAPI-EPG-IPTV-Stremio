@@ -187,10 +187,6 @@ class M3UEPGAddon {
                         .map(s => s.trim())
                 )
             ].sort((a, b) => a.localeCompare(b));
-            if (movieGroups.length === 0) {
-                // If no categories found, add some default ones
-                movieGroups.push('All Movies', 'Action', 'Comedy', 'Drama', 'Horror', 'Sci-Fi');
-            }
             movieCatalog.genres = movieGroups;
         }
 
@@ -203,19 +199,13 @@ class M3UEPGAddon {
                         .map(s => s.trim())
                 )
             ].sort((a, b) => a.localeCompare(b));
-            if (seriesGroups.length === 0) {
-                // If no categories found, add some default ones
-                seriesGroups.push('All Series', 'Drama', 'Comedy', 'Action', 'Documentary');
-            }
             seriesCatalog.genres = seriesGroups;
         }
 
         this.log.debug('Catalog genres built', {
             tvGenres: tvCatalog?.genres?.length || 0,
             movieGenres: movieCatalog?.genres?.length || 0,
-            seriesGenres: seriesCatalog?.genres?.length || 0,
-            movieCategories: this.movies.map(m => m.category).filter(Boolean).slice(0, 10),
-            seriesCategories: this.series.map(s => s.category).filter(Boolean).slice(0, 10)
+            seriesGenres: seriesCatalog?.genres?.length || 0
         });
     }
 
