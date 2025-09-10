@@ -251,7 +251,7 @@ class M3UEPGAddon {
 
                 const isSeries =
                     !isMovie && (
-                        // Group-based detection
+                        // Group-based detection (lionzhd and other providers)
                         group.includes('series') ||
                         group.includes('show') ||
                         group.includes('tv show') ||
@@ -268,8 +268,11 @@ class M3UEPGAddon {
                         group.includes('documentary series') ||
                         group.includes('mini series') ||
                         group.includes('miniseries') ||
+                        group.includes('tv-series') ||
+                        group.includes('tvshow') ||
+                        group.includes('tv_show') ||
                         
-                        // Episode format patterns
+                        // Episode format patterns (comprehensive for lionzhd)
                         /\bS\d{1,2}E\d{1,2}\b/i.test(currentItem.name) ||           // S01E01
                         /\bSeason\s?\d+/i.test(currentItem.name) ||                  // Season 1
                         /\bEpisode\s?\d+/i.test(currentItem.name) ||                 // Episode 1
@@ -297,13 +300,26 @@ class M3UEPGAddon {
                         
                         // Network/Channel indicators that suggest series
                         /\b(HBO|Netflix|Amazon|Disney|Hulu|BBC|ITV|Channel\s?\d+)\b/i.test(currentItem.name) && 
-                        !/\b(Movie|Film)\b/i.test(currentItem.name)
+                        !/\b(Movie|Film)\b/i.test(currentItem.name) ||
+                        
+                        // Aggressive detection for lionzhd - if it's not clearly a movie or live channel
+                        (!group.includes('movie') && 
+                         !group.includes('film') && 
+                         !group.includes('live') && 
+                         !group.includes('news') && 
+                         !group.includes('sport') && 
+                         !lower.includes('live') &&
+                         !lower.includes('news') &&
+                         !lower.includes('sport') &&
+                         currentItem.name.length > 5 && // Reasonable name length
+                         !/^\d+\s*$/.test(currentItem.name) && // Not just numbers
+                         !/^[A-Z]{2,5}\s*\d*$/.test(currentItem.name)) // Not just channel codes like "CNN 1"
                     );
 
                 currentItem.type = isSeries ? 'series' : (isMovie ? 'movie' : 'tv');
                 
                 if (this.config.debug) {
-                    console.log(`[DEBUG] Item: ${currentItem.name} | Group: ${group} | Type: ${currentItem.type} | isSeries: ${isSeries} | isMovie: ${isMovie}`);
+                    console.log(`[DEBUG] LIONZHD Item: "${currentItem.name}" | Group: "${group}" | Type: ${currentItem.type} | isSeries: ${isSeries} | isMovie: ${isMovie}`);
                 }
                 currentItem.id = `iptv_${crypto.createHash('md5').update(currentItem.name + currentItem.url).digest('hex').substring(0, 16)}`;
                 items.push(currentItem);
