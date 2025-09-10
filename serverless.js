@@ -162,10 +162,9 @@ function maybeDecryptConfig(token) {
 }
 
 function isConfigToken(token) {
-    if (!token) return false;
-    if (token.startsWith('enc:')) return true;
-    if (token.length < 4) return false;
-    return true;
+    const isValid = token && token.length > 10 && /^[A-Za-z0-9+/=]+$/.test(token);
+    console.log(`[SERVERLESS] Token validation: ${token?.substring(0, 20)}... -> ${isValid}`);
+    return isValid;
 }
 
 // Legacy redirect
@@ -328,8 +327,27 @@ app.get('/', (req, res) => {
         name: 'M3U/EPG IPTV Stremio Addon', 
         version: '1.4.0',
         status: 'running',
-        endpoints: ['/configure', '/health']
+        endpoints: ['/configure', '/health'],
+        timestamp: new Date().toISOString()
     });
+});
+
+// Test manifest endpoint
+app.get('/test-manifest', (req, res) => {
+    const testManifest = {
+        id: 'org.stremio.m3u-epg-addon.test',
+        version: '1.4.0',
+        name: 'M3U/EPG TV Addon (Test)',
+        description: 'Test manifest for IPTV addon',
+        resources: ['catalog', 'meta', 'stream'],
+        types: ['tv', 'movie', 'series'],
+        catalogs: [
+            { type: 'tv', id: 'iptv_channels', name: 'IPTV Channels' },
+            { type: 'movie', id: 'iptv_movies', name: 'IPTV Movies' },
+            { type: 'series', id: 'iptv_series', name: 'IPTV Series' }
+        ]
+    };
+    res.json(testManifest);
 });
 
 app.use('*', (req, res) => {
