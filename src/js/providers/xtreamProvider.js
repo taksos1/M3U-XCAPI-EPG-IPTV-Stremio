@@ -51,16 +51,34 @@ async function fetchData(addonInstance) {
             const episodesBySeriesId = new Map();
             
             for (const sc of seriesCandidates) {
-                // More flexible series name cleaning
+                // Comprehensive series name cleaning for all IPTV formats
                 let baseName = sc.name;
                 
-                // Remove common episode patterns
-                baseName = baseName.replace(/\bS\d{1,2}E\d{1,2}\b.*$/i, '').trim();
-                baseName = baseName.replace(/\bSeason\s*\d+.*$/i, '').trim();
-                baseName = baseName.replace(/\bEpisode\s*\d+.*$/i, '').trim();
-                baseName = baseName.replace(/\b\d{1,2}x\d{1,2}\b.*$/i, '').trim();
+                // Remove all common episode/season patterns
+                baseName = baseName.replace(/\bS\d{1,2}E\d{1,2}\b.*$/i, '').trim();                    // S01E01
+                baseName = baseName.replace(/\bSeason\s*\d+.*$/i, '').trim();                         // Season 1
+                baseName = baseName.replace(/\bEpisode\s*\d+.*$/i, '').trim();                        // Episode 1
+                baseName = baseName.replace(/\b\d{1,2}x\d{1,2}\b.*$/i, '').trim();                   // 1x01
+                baseName = baseName.replace(/\bEp\s*\d+.*$/i, '').trim();                             // Ep 01
+                baseName = baseName.replace(/\bE\d{1,3}\b.*$/i, '').trim();                           // E01
+                baseName = baseName.replace(/\bPart\s*\d+.*$/i, '').trim();                           // Part 1
+                baseName = baseName.replace(/\bChapter\s*\d+.*$/i, '').trim();                        // Chapter 1
+                baseName = baseName.replace(/\[\d+\].*$/i, '').trim();                                // [01]
+                baseName = baseName.replace(/\(\d+\).*$/i, '').trim();                                // (01)
+                baseName = baseName.replace(/\b\d+\s*of\s*\d+.*$/i, '').trim();                      // 1 of 10
+                baseName = baseName.replace(/\b\d+\/\d+.*$/i, '').trim();                             // 1/10
+                baseName = baseName.replace(/\bSeries\s*\d+.*$/i, '').trim();                         // Series 1
+                baseName = baseName.replace(/\bVol\s*\d+.*$/i, '').trim();                            // Vol 1
+                baseName = baseName.replace(/\bVolume\s*\d+.*$/i, '').trim();                         // Volume 1
+                baseName = baseName.replace(/\b\d{4}\.\d{2}\.\d{2}.*$/i, '').trim();                 // 2023.01.01
+                baseName = baseName.replace(/\b\d{1,2}-\d{1,2}-\d{4}.*$/i, '').trim();              // 01-01-2023
+                baseName = baseName.replace(/\b\d{2}\/\d{2}\/\d{4}.*$/i, '').trim();                // 01/01/2023
                 
-                if (!baseName) baseName = sc.name; // Fallback to original name
+                // Remove common separators and clean up
+                baseName = baseName.replace(/[-_\.\|]+$/, '').trim();                                 // Trailing separators
+                baseName = baseName.replace(/\s+[-_\.\|]\s*$/, '').trim();                           // Spaced separators
+                
+                if (!baseName || baseName.length < 2) baseName = sc.name; // Fallback to original name
                 
                 const seriesId = cryptoHash(baseName);
                 
@@ -83,29 +101,78 @@ async function fetchData(addonInstance) {
                     console.log(`[DEBUG] Created series: ${baseName} (ID: ${seriesId})`);
                 }
                 
-                // Parse episode info from title - more flexible patterns
+                // Enhanced episode parsing for all formats
                 let season = 1, episode = 1;
+                const originalName = sc.name;
                 
-                // Try S01E01 pattern
-                let episodeMatch = sc.name.match(/\bS(\d{1,2})E(\d{1,2})\b/i);
+                // Try multiple episode patterns in order of specificity
+                let episodeMatch = originalName.match(/\bS(\d{1,2})E(\d{1,2})\b/i);                  // S01E01
                 if (episodeMatch) {
                     season = parseInt(episodeMatch[1], 10);
                     episode = parseInt(episodeMatch[2], 10);
                 } else {
-                    // Try Season X Episode Y pattern
-                    episodeMatch = sc.name.match(/\bSeason\s*(\d+).*?Episode\s*(\d+)\b/i);
+                    episodeMatch = originalName.match(/\bSeason\s*(\d+).*?Episode\s*(\d+)\b/i);       // Season 1 Episode 1
                     if (episodeMatch) {
                         season = parseInt(episodeMatch[1], 10);
                         episode = parseInt(episodeMatch[2], 10);
                     } else {
-                        // Try 1x01 pattern
-                        episodeMatch = sc.name.match(/\b(\d{1,2})x(\d{1,2})\b/i);
+                        episodeMatch = originalName.match(/\b(\d{1,2})x(\d{1,2})\b/i);               // 1x01
                         if (episodeMatch) {
                             season = parseInt(episodeMatch[1], 10);
                             episode = parseInt(episodeMatch[2], 10);
                         } else {
-                            // Default: treat each item as episode 1 of season 1
-                            episode = episodesBySeriesId.get(seriesId).length + 1;
+                            episodeMatch = originalName.match(/\bEp\s*(\d+)/i);                       // Ep 01
+                            if (episodeMatch) {
+                                episode = parseInt(episodeMatch[1], 10);
+                            } else {
+                                episodeMatch = originalName.match(/\bE(\d{1,3})\b/i);                 // E01
+                                if (episodeMatch) {
+                                    episode = parseInt(episodeMatch[1], 10);
+                                } else {
+                                    episodeMatch = originalName.match(/\bPart\s*(\d+)/i);             // Part 1
+                                    if (episodeMatch) {
+                                        episode = parseInt(episodeMatch[1], 10);
+                                    } else {
+                                        episodeMatch = originalName.match(/\bChapter\s*(\d+)/i);      // Chapter 1
+                                        if (episodeMatch) {
+                                            episode = parseInt(episodeMatch[1], 10);
+                                        } else {
+                                            episodeMatch = originalName.match(/\[(\d+)\]/);           // [01]
+                                            if (episodeMatch) {
+                                                episode = parseInt(episodeMatch[1], 10);
+                                            } else {
+                                                episodeMatch = originalName.match(/\((\d+)\)/);       // (01)
+                                                if (episodeMatch) {
+                                                    episode = parseInt(episodeMatch[1], 10);
+                                                } else {
+                                                    episodeMatch = originalName.match(/\b(\d+)\s*of\s*\d+\b/i); // 1 of 10
+                                                    if (episodeMatch) {
+                                                        episode = parseInt(episodeMatch[1], 10);
+                                                    } else {
+                                                        episodeMatch = originalName.match(/\b(\d+)\/\d+\b/); // 1/10
+                                                        if (episodeMatch) {
+                                                            episode = parseInt(episodeMatch[1], 10);
+                                                        } else {
+                                                            // Date-based episodes
+                                                            episodeMatch = originalName.match(/\b(\d{4})\.(\d{2})\.(\d{2})\b/); // 2023.01.01
+                                                            if (episodeMatch) {
+                                                                const year = parseInt(episodeMatch[1], 10);
+                                                                const month = parseInt(episodeMatch[2], 10);
+                                                                const day = parseInt(episodeMatch[3], 10);
+                                                                season = year - 2020; // Arbitrary base year
+                                                                episode = month * 100 + day; // MMDD format
+                                                            } else {
+                                                                // Sequential numbering fallback
+                                                                episode = episodesBySeriesId.get(seriesId).length + 1;
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -125,6 +192,69 @@ async function fetchData(addonInstance) {
                 console.log(`[DEBUG] Added episode: ${sc.name} -> S${season}E${episode} to series ${baseName}`);
             }
             
+            // Fallback grouping for items that might be series but didn't match patterns
+            const remainingItems = items.filter(i => i.type === 'tv' && !i.name.toLowerCase().includes('live'));
+            const fallbackSeries = new Map();
+            
+            for (const item of remainingItems) {
+                // Try to find potential series by similar names
+                let potentialSeriesName = item.name;
+                
+                // Remove common suffixes that might indicate episodes
+                potentialSeriesName = potentialSeriesName.replace(/\s*[-_\|]\s*\d+\s*$/, '').trim();
+                potentialSeriesName = potentialSeriesName.replace(/\s*\d+\s*$/, '').trim();
+                potentialSeriesName = potentialSeriesName.replace(/\s*HD\s*$/, '').trim();
+                potentialSeriesName = potentialSeriesName.replace(/\s*FHD\s*$/, '').trim();
+                potentialSeriesName = potentialSeriesName.replace(/\s*4K\s*$/, '').trim();
+                
+                // Only consider as potential series if name is long enough and contains certain keywords
+                if (potentialSeriesName.length > 3 && 
+                    (item.category?.toLowerCase().includes('show') || 
+                     item.category?.toLowerCase().includes('series') ||
+                     item.category?.toLowerCase().includes('drama') ||
+                     item.category?.toLowerCase().includes('comedy'))) {
+                    
+                    const fallbackId = cryptoHash(potentialSeriesName);
+                    
+                    if (!seen.has(potentialSeriesName) && !fallbackSeries.has(potentialSeriesName)) {
+                        fallbackSeries.set(potentialSeriesName, {
+                            id: `iptv_series_${fallbackId}`,
+                            series_id: fallbackId,
+                            name: potentialSeriesName,
+                            type: 'series',
+                            poster: item.logo || item.attributes?.['tvg-logo'],
+                            plot: `Series: ${potentialSeriesName}`,
+                            category: item.category,
+                            attributes: {
+                                'tvg-logo': item.logo || item.attributes?.['tvg-logo'],
+                                'group-title': item.category || item.attributes?.['group-title'],
+                                'plot': `Series: ${potentialSeriesName}`
+                            }
+                        });
+                        episodesBySeriesId.set(fallbackId, []);
+                        console.log(`[DEBUG] Created fallback series: ${potentialSeriesName} (ID: ${fallbackId})`);
+                    }
+                    
+                    // Add as episode
+                    const episodes = episodesBySeriesId.get(fallbackId);
+                    const episodeData = {
+                        id: `iptv_series_ep_${cryptoHash(item.name + item.url)}`,
+                        title: item.name,
+                        season: 1,
+                        episode: episodes.length + 1,
+                        url: item.url,
+                        thumbnail: item.logo || item.attributes?.['tvg-logo']
+                    };
+                    episodes.push(episodeData);
+                    console.log(`[DEBUG] Added fallback episode: ${item.name} -> S1E${episodes.length} to series ${potentialSeriesName}`);
+                }
+            }
+            
+            // Merge fallback series with main series
+            for (const fallbackSeries of fallbackSeries.values()) {
+                seen.set(fallbackSeries.name, fallbackSeries);
+            }
+            
             addonInstance.series = Array.from(seen.values());
             
             // Store episodes for each series in the direct series episode index
@@ -133,7 +263,7 @@ async function fetchData(addonInstance) {
                 console.log(`[DEBUG] Stored ${episodes.length} episodes for series ID: ${seriesId}`);
             }
             
-            console.log(`[DEBUG] Total series created: ${addonInstance.series.length}`);
+            console.log(`[DEBUG] Total series created: ${addonInstance.series.length} (including ${fallbackSeries.size} fallback series)`);
         }
     } else {
         // JSON API mode
