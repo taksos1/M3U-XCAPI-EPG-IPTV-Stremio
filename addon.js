@@ -251,76 +251,13 @@ class M3UEPGAddon {
 
                 const isSeries =
                     !isMovie && (
-                        // Group-based detection (lionzhd and other providers)
                         group.includes('series') ||
                         group.includes('show') ||
-                        group.includes('tv show') ||
-                        group.includes('tv series') ||
-                        group.includes('episode') ||
-                        group.includes('episodes') ||
-                        group.includes('season') ||
-                        group.includes('seasons') ||
-                        group.includes('drama') ||
-                        group.includes('sitcom') ||
-                        group.includes('comedy') ||
-                        group.includes('anime') ||
-                        group.includes('cartoon') ||
-                        group.includes('documentary series') ||
-                        group.includes('mini series') ||
-                        group.includes('miniseries') ||
-                        group.includes('tv-series') ||
-                        group.includes('tvshow') ||
-                        group.includes('tv_show') ||
-                        
-                        // Episode format patterns (comprehensive for lionzhd)
-                        /\bS\d{1,2}E\d{1,2}\b/i.test(currentItem.name) ||           // S01E01
-                        /\bSeason\s?\d+/i.test(currentItem.name) ||                  // Season 1
-                        /\bEpisode\s?\d+/i.test(currentItem.name) ||                 // Episode 1
-                        /\b\d{1,2}x\d{1,2}\b/i.test(currentItem.name) ||            // 1x01
-                        /\bEp\s?\d+/i.test(currentItem.name) ||                      // Ep 01, Ep1
-                        /\bE\d{1,3}\b/i.test(currentItem.name) ||                    // E01, E1
-                        /\b\d{4}\.\d{2}\.\d{2}\b/.test(currentItem.name) ||         // 2023.01.01 (date format)
-                        /\b\d{1,2}-\d{1,2}-\d{4}\b/.test(currentItem.name) ||      // 01-01-2023
-                        /\bPart\s?\d+/i.test(currentItem.name) ||                    // Part 1
-                        /\bChapter\s?\d+/i.test(currentItem.name) ||                // Chapter 1
-                        /\[\d+\]/i.test(currentItem.name) ||                        // [01], [1]
-                        /\(\d+\)/i.test(currentItem.name) ||                        // (01), (1)
-                        /\b\d+\s*of\s*\d+\b/i.test(currentItem.name) ||            // 1 of 10
-                        /\b\d+\/\d+\b/.test(currentItem.name) ||                    // 1/10
-                        
-                        // Multi-part indicators
-                        /\bMulti[- ]?Part/i.test(currentItem.name) ||
-                        /\bSeries\s?\d+/i.test(currentItem.name) ||                 // Series 1
-                        /\bVol\s?\d+/i.test(currentItem.name) ||                    // Vol 1, Volume 1
-                        /\bVolume\s?\d+/i.test(currentItem.name) ||
-                        
-                        // Common series keywords in title
-                        /\b(Complete|Full)\s+(Series|Season)/i.test(currentItem.name) ||
-                        /\bAll\s+Episodes/i.test(currentItem.name) ||
-                        
-                        // Network/Channel indicators that suggest series
-                        /\b(HBO|Netflix|Amazon|Disney|Hulu|BBC|ITV|Channel\s?\d+)\b/i.test(currentItem.name) && 
-                        !/\b(Movie|Film)\b/i.test(currentItem.name) ||
-                        
-                        // Aggressive detection for lionzhd - if it's not clearly a movie or live channel
-                        (!group.includes('movie') && 
-                         !group.includes('film') && 
-                         !group.includes('live') && 
-                         !group.includes('news') && 
-                         !group.includes('sport') && 
-                         !lower.includes('live') &&
-                         !lower.includes('news') &&
-                         !lower.includes('sport') &&
-                         currentItem.name.length > 5 && // Reasonable name length
-                         !/^\d+\s*$/.test(currentItem.name) && // Not just numbers
-                         !/^[A-Z]{2,5}\s*\d*$/.test(currentItem.name)) // Not just channel codes like "CNN 1"
+                        /\bS\d{1,2}E\d{1,2}\b/i.test(currentItem.name) ||
+                        /\bSeason\s?\d+/i.test(currentItem.name)
                     );
 
                 currentItem.type = isSeries ? 'series' : (isMovie ? 'movie' : 'tv');
-                
-                if (this.config.debug) {
-                    console.log(`[DEBUG] LIONZHD Item: "${currentItem.name}" | Group: "${group}" | Type: ${currentItem.type} | isSeries: ${isSeries} | isMovie: ${isMovie}`);
-                }
                 currentItem.id = `iptv_${crypto.createHash('md5').update(currentItem.name + currentItem.url).digest('hex').substring(0, 16)}`;
                 items.push(currentItem);
                 currentItem = null;
@@ -439,27 +376,15 @@ class M3UEPGAddon {
         if (!seriesId) return null;
         if (this.seriesInfoCache.has(seriesId)) return this.seriesInfoCache.get(seriesId);
 
-        if (this.config.debug) {
-            console.log(`[DEBUG] Fetching series info for ID: ${seriesId}`);
-        }
-
         try {
             const providerModule = require(`./src/js/providers/${this.providerName}Provider.js`);
             if (typeof providerModule.fetchSeriesInfo === 'function') {
                 const info = await providerModule.fetchSeriesInfo(this, seriesId);
                 this.seriesInfoCache.set(seriesId, info);
-                
-                if (this.config.debug) {
-                    console.log(`[DEBUG] Provider returned series info:`, { videos: info?.videos?.length || 0 });
-                }
-                
                 return info;
             }
         } catch (e) {
             this.log.warn('Series info fetch failed', seriesId, e.message);
-            if (this.config.debug) {
-                console.log(`[DEBUG] Series info fetch error:`, e.message);
-            }
         }
         // Fallback empty structure
         const empty = { videos: [] };
@@ -581,20 +506,7 @@ class M3UEPGAddon {
 
     async buildSeriesMeta(seriesItem) {
         const seriesIdRaw = seriesItem.series_id || seriesItem.id.replace(/^iptv_series_/, '');
-        
-        if (this.config.debug) {
-            console.log(`[DEBUG] Building series meta for: ${seriesItem.name}`);
-            console.log(`[DEBUG] Series ID: ${seriesItem.id}, Raw ID: ${seriesIdRaw}`);
-            console.log(`[DEBUG] Direct episode index size: ${this.directSeriesEpisodeIndex.size}`);
-            console.log(`[DEBUG] Available series IDs in index:`, Array.from(this.directSeriesEpisodeIndex.keys()));
-        }
-        
         const info = await this.ensureSeriesInfo(seriesIdRaw);
-        
-        if (this.config.debug) {
-            console.log(`[DEBUG] Series info result:`, { videos: info?.videos?.length || 0 });
-        }
-        
         const videos = (info?.videos || []).map(v => ({
             id: v.id,
             title: v.title,
@@ -621,16 +533,8 @@ class M3UEPGAddon {
 
     async getDetailedMetaAsync(id, type) {
         if (type === 'series' || id.startsWith('iptv_series_')) {
-            console.log(`[DEBUG] getDetailedMetaAsync called with id: ${id}, type: ${type}`);
-            console.log(`[DEBUG] Available series:`, this.series.map(s => ({ id: s.id, name: s.name, series_id: s.series_id })));
-            
             const seriesItem = this.series.find(s => s.id === id);
-            if (!seriesItem) {
-                console.log(`[DEBUG] No series found with id: ${id}`);
-                return null;
-            }
-            
-            console.log(`[DEBUG] Found series item:`, { id: seriesItem.id, name: seriesItem.name, series_id: seriesItem.series_id });
+            if (!seriesItem) return null;
             return await this.buildSeriesMeta(seriesItem);
         }
         // fallback sync path
@@ -745,18 +649,10 @@ async function createAddon(config) {
     }
 
     const buildPromise = (async () => {
-        console.log(`[ADDON] Creating addon with manifest:`, JSON.stringify(manifest, null, 2));
-        
         const builder = new addonBuilder(manifest);
         const addonInstance = new M3UEPGAddon(config, manifest);
-        
-        console.log(`[ADDON] Loading from cache...`);
         await addonInstance.loadFromCache();
-        
-        console.log(`[ADDON] Updating data...`);
         await addonInstance.updateData(true);
-        
-        console.log(`[ADDON] Building genres...`);
         addonInstance.buildGenresInManifest();
 
         builder.defineCatalogHandler(async (args) => {
@@ -769,13 +665,8 @@ async function createAddon(config) {
                 } else if (args.type === 'movie' && args.id === 'iptv_movies') {
                     items = addonInstance.movies;
                 } else if (args.type === 'series' && args.id === 'iptv_series') {
-                    if (addonInstance.config.includeSeries !== false) {
+                    if (addonInstance.config.includeSeries !== false)
                         items = addonInstance.series;
-                        console.log(`[DEBUG] Catalog: Found ${items.length} series items`);
-                        if (items.length > 0) {
-                            console.log(`[DEBUG] First series:`, { id: items[0].id, name: items[0].name, series_id: items[0].series_id });
-                        }
-                    }
                 }
                 const extra = args.extra || {};
                 if (extra.genre && extra.genre !== 'All Channels') {
@@ -829,35 +720,11 @@ async function createAddon(config) {
 
         builder.defineMetaHandler(async ({ type, id }) => {
             try {
-                console.log(`[DEBUG] Meta handler called with type: ${type}, id: ${id}`);
-                
                 if (type === 'series' || id.startsWith('iptv_series_')) {
                     const meta = await addonInstance.getDetailedMetaAsync(id, 'series');
-                    console.log(`[DEBUG] Series meta result:`, { 
-                        id, 
-                        metaFound: !!meta, 
-                        videos: meta?.videos?.length || 0,
-                        metaName: meta?.name 
-                    });
-                    
-                    // If no meta found, return a basic structure to avoid "No metadata found"
-                    if (!meta) {
-                        const fallbackSeries = addonInstance.series.find(s => s.id === id);
-                        if (fallbackSeries) {
-                            return {
-                                meta: {
-                                    id: fallbackSeries.id,
-                                    type: 'series',
-                                    name: fallbackSeries.name,
-                                    poster: fallbackSeries.poster || `https://via.placeholder.com/300x450/3366CC/FFFFFF?text=${encodeURIComponent(fallbackSeries.name)}`,
-                                    description: fallbackSeries.plot || 'Series',
-                                    genres: [fallbackSeries.category || 'Series'],
-                                    videos: [] // Empty but present
-                                }
-                            };
-                        }
+                    if (addonInstance.config.debug) {
+                        console.log('[DEBUG] Series meta request', { id, videos: meta?.videos?.length });
                     }
-                    
                     return { meta };
                 }
                 const meta = addonInstance.getDetailedMeta(id);
@@ -871,19 +738,13 @@ async function createAddon(config) {
             }
         });
 
-        const iface = builder.getInterface();
-        console.log(`[ADDON] Interface created successfully. Manifest:`, iface.manifest);
-        return iface;
+        return builder.getInterface();
     })();
 
     if (CACHE_ENABLED) buildPromiseCache.set(cacheKey, buildPromise);
     try {
         const iface = await buildPromise;
-        console.log(`[ADDON] Final interface ready with manifest ID:`, iface.manifest?.id);
         return iface;
-    } catch (error) {
-        console.error(`[ADDON] Build failed:`, error);
-        throw error;
     } finally {
         // Keep promise cached
     }
