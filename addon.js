@@ -251,14 +251,53 @@ class M3UEPGAddon {
 
                 const isSeries =
                     !isMovie && (
+                        // Group-based detection
                         group.includes('series') ||
                         group.includes('show') ||
                         group.includes('tv show') ||
+                        group.includes('tv series') ||
                         group.includes('episode') ||
-                        /\bS\d{1,2}E\d{1,2}\b/i.test(currentItem.name) ||
-                        /\bSeason\s?\d+/i.test(currentItem.name) ||
-                        /\bEpisode\s?\d+/i.test(currentItem.name) ||
-                        /\b\d{1,2}x\d{1,2}\b/i.test(currentItem.name)
+                        group.includes('episodes') ||
+                        group.includes('season') ||
+                        group.includes('seasons') ||
+                        group.includes('drama') ||
+                        group.includes('sitcom') ||
+                        group.includes('comedy') ||
+                        group.includes('anime') ||
+                        group.includes('cartoon') ||
+                        group.includes('documentary series') ||
+                        group.includes('mini series') ||
+                        group.includes('miniseries') ||
+                        
+                        // Episode format patterns
+                        /\bS\d{1,2}E\d{1,2}\b/i.test(currentItem.name) ||           // S01E01
+                        /\bSeason\s?\d+/i.test(currentItem.name) ||                  // Season 1
+                        /\bEpisode\s?\d+/i.test(currentItem.name) ||                 // Episode 1
+                        /\b\d{1,2}x\d{1,2}\b/i.test(currentItem.name) ||            // 1x01
+                        /\bEp\s?\d+/i.test(currentItem.name) ||                      // Ep 01, Ep1
+                        /\bE\d{1,3}\b/i.test(currentItem.name) ||                    // E01, E1
+                        /\b\d{4}\.\d{2}\.\d{2}\b/.test(currentItem.name) ||         // 2023.01.01 (date format)
+                        /\b\d{1,2}-\d{1,2}-\d{4}\b/.test(currentItem.name) ||      // 01-01-2023
+                        /\bPart\s?\d+/i.test(currentItem.name) ||                    // Part 1
+                        /\bChapter\s?\d+/i.test(currentItem.name) ||                // Chapter 1
+                        /\[\d+\]/i.test(currentItem.name) ||                        // [01], [1]
+                        /\(\d+\)/i.test(currentItem.name) ||                        // (01), (1)
+                        /\b\d+\s*of\s*\d+\b/i.test(currentItem.name) ||            // 1 of 10
+                        /\b\d+\/\d+\b/.test(currentItem.name) ||                    // 1/10
+                        
+                        // Multi-part indicators
+                        /\bMulti[- ]?Part/i.test(currentItem.name) ||
+                        /\bSeries\s?\d+/i.test(currentItem.name) ||                 // Series 1
+                        /\bVol\s?\d+/i.test(currentItem.name) ||                    // Vol 1, Volume 1
+                        /\bVolume\s?\d+/i.test(currentItem.name) ||
+                        
+                        // Common series keywords in title
+                        /\b(Complete|Full)\s+(Series|Season)/i.test(currentItem.name) ||
+                        /\bAll\s+Episodes/i.test(currentItem.name) ||
+                        
+                        // Network/Channel indicators that suggest series
+                        /\b(HBO|Netflix|Amazon|Disney|Hulu|BBC|ITV|Channel\s?\d+)\b/i.test(currentItem.name) && 
+                        !/\b(Movie|Film)\b/i.test(currentItem.name)
                     );
 
                 currentItem.type = isSeries ? 'series' : (isMovie ? 'movie' : 'tv');
