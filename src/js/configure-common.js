@@ -185,14 +185,45 @@
 
     /* -------- Token / URL builder -------- */
 
-    function encodeConfigBase64Url(config) {
+    async function encodeConfigBase64Url(config) {
         const json = JSON.stringify(config);
+        
+        // Check if token would be too long (URL limit ~2000 chars, leave room for domain/path)
+        if (json.length > 1000) {
+            console.warn('Configuration too large for URL encoding, using server encryption');
+            // Use server encryption endpoint for large configs
+            return await encryptOnServer(config);
+        }
+        
         let b64 = btoa(unescape(encodeURIComponent(json)));
         return b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
     }
+    
+    async function encryptOnServer(config) {
+        try {
+            const response = await fetch('/encrypt', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(config)
+            });
+            
+            if (!response.ok) {
+                throw new Error(`Encryption failed: ${response.status}`);
+            }
+            
+            const result = await response.json();
+            return result.token;
+        } catch (error) {
+            console.error('Server encryption failed, falling back to base64:', error);
+            // Fallback to base64 even if large
+            const json = JSON.stringify(config);
+            let b64 = btoa(unescape(encodeURIComponent(json)));
+            return b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+        }
+    }
 
-    function buildUrls(config) {
-        const token = encodeConfigBase64Url(config);
+    async function buildUrls(config) {
+        const token = await encodeConfigBase64Url(config);
         const origin = window.location.origin;
         manifestUrl = `${origin}/${token}/manifest.json`;
         const hostPart = origin.replace(/^https?:\/\//, '');
