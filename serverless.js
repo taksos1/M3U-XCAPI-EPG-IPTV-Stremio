@@ -298,15 +298,21 @@ app.get('/:token/logo/:tvgId.png', async (req, res) => {
 // Stremio router
 app.use('/:token', (req, res) => {
     const iface = req.addonInterface;
-    if (!iface) return res.status(500).json({ error: 'Interface not ready' });
+    if (!iface) {
+        console.error('[SERVERLESS] Interface not ready for token:', req.params.token);
+        return res.status(500).json({ error: 'Interface not ready' });
+    }
 
+    console.log(`[SERVERLESS] Routing request: ${req.method} ${req.path}`);
+    
     const router = getRouter(iface);
     router(req, res, (err) => {
         if (err) {
             console.error('[SERVERLESS] Router error:', err);
-            res.status(500).json({ error: 'Addon error' });
+            res.status(500).json({ error: 'Addon error', details: err.message });
         } else {
-            res.status(404).json({ error: 'Not found' });
+            console.log(`[SERVERLESS] Route not found: ${req.method} ${req.path}`);
+            res.status(404).json({ error: 'Not found', path: req.path });
         }
     });
 });
