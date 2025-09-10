@@ -384,15 +384,27 @@ class M3UEPGAddon {
         if (!seriesId) return null;
         if (this.seriesInfoCache.has(seriesId)) return this.seriesInfoCache.get(seriesId);
 
+        if (this.config.debug) {
+            console.log(`[DEBUG] Fetching series info for ID: ${seriesId}`);
+        }
+
         try {
             const providerModule = require(`./src/js/providers/${this.providerName}Provider.js`);
             if (typeof providerModule.fetchSeriesInfo === 'function') {
                 const info = await providerModule.fetchSeriesInfo(this, seriesId);
                 this.seriesInfoCache.set(seriesId, info);
+                
+                if (this.config.debug) {
+                    console.log(`[DEBUG] Provider returned series info:`, { videos: info?.videos?.length || 0 });
+                }
+                
                 return info;
             }
         } catch (e) {
             this.log.warn('Series info fetch failed', seriesId, e.message);
+            if (this.config.debug) {
+                console.log(`[DEBUG] Series info fetch error:`, e.message);
+            }
         }
         // Fallback empty structure
         const empty = { videos: [] };
@@ -514,7 +526,20 @@ class M3UEPGAddon {
 
     async buildSeriesMeta(seriesItem) {
         const seriesIdRaw = seriesItem.series_id || seriesItem.id.replace(/^iptv_series_/, '');
+        
+        if (this.config.debug) {
+            console.log(`[DEBUG] Building series meta for: ${seriesItem.name}`);
+            console.log(`[DEBUG] Series ID: ${seriesItem.id}, Raw ID: ${seriesIdRaw}`);
+            console.log(`[DEBUG] Direct episode index size: ${this.directSeriesEpisodeIndex.size}`);
+            console.log(`[DEBUG] Available series IDs in index:`, Array.from(this.directSeriesEpisodeIndex.keys()));
+        }
+        
         const info = await this.ensureSeriesInfo(seriesIdRaw);
+        
+        if (this.config.debug) {
+            console.log(`[DEBUG] Series info result:`, { videos: info?.videos?.length || 0 });
+        }
+        
         const videos = (info?.videos || []).map(v => ({
             id: v.id,
             title: v.title,
