@@ -702,6 +702,9 @@ class IPTVAddon {
     }
 
     async generateMeta(item) {
+        console.log(`[META] Generating metadata for: ${item.name} (${item.type})`);
+        console.log(`[META] Item data:`, JSON.stringify(item, null, 2));
+        
         const meta = {
             id: item.id,
             type: item.type,
@@ -712,7 +715,13 @@ class IPTVAddon {
         // Try to get IMDB metadata for movies and series
         let imdbData = null;
         if (item.type !== 'tv') {
+            console.log(`[META] Fetching IMDB data for: ${item.name}`);
             imdbData = await this.getIMDBMetadata(item.name, item.type === 'series' ? 'series' : 'movie', item.year);
+            if (imdbData) {
+                console.log(`[META] IMDB data found:`, JSON.stringify(imdbData, null, 2));
+            } else {
+                console.log(`[META] No IMDB data found for: ${item.name}`);
+            }
         }
 
         // Use IMDB data if available
@@ -938,40 +947,83 @@ module.exports = async function createAddon(config = {}) {
         
         // Handle different catalog types
         if (id.includes('trending')) {
-            // Trending content - sort by popularity/rating
+            // Trending content - use realistic logic based on available data
             items = addon.getCatalogItems(type, null, null);
+            console.log(`[TRENDING] Processing ${items.length} items for trending`);
+            
             items = items.sort((a, b) => {
-                // Sort by rating first, then by name
-                const ratingA = parseFloat(a.rating) || 0;
-                const ratingB = parseFloat(b.rating) || 0;
-                if (ratingB !== ratingA) return ratingB - ratingA;
-                return a.name.localeCompare(b.name);
+                // Create trending score based on multiple factors
+                let scoreA = 0, scoreB = 0;
+                
+                // Factor 1: Name popularity (shorter names often more popular)
+                scoreA += Math.max(0, 20 - a.name.length);
+                scoreB += Math.max(0, 20 - b.name.length);
+                
+                // Factor 2: Category popularity
+                const trendingCategories = ['Action', 'Drama', 'Comedy', 'Horror', 'Thriller', 'Romance', 'Sci-Fi'];
+                if (trendingCategories.includes(a.category)) scoreA += 15;
+                if (trendingCategories.includes(b.category)) scoreB += 15;
+                
+                // Factor 3: Year (newer = more trending)
+                if (a.year) scoreA += Math.max(0, (a.year - 2000) / 2);
+                if (b.year) scoreB += Math.max(0, (b.year - 2000) / 2);
+                
+                // Factor 4: Has poster (more complete = more trending)
+                if (a.poster) scoreA += 5;
+                if (b.poster) scoreB += 5;
+                
+                console.log(`[TRENDING] ${a.name}: ${scoreA}, ${b.name}: ${scoreB}`);
+                return scoreB - scoreA;
             });
             catalogName = '🔥 Trending';
         } else if (id.includes('popular')) {
-            // Popular content - sort by category popularity and rating
+            // Popular content - based on category size and completeness
             items = addon.getCatalogItems(type, null, null);
+            console.log(`[POPULAR] Processing ${items.length} items for popular`);
+            
+            // Count items per category to determine popularity
+            const categoryCount = {};
+            items.forEach(item => {
+                categoryCount[item.category] = (categoryCount[item.category] || 0) + 1;
+            });
+            
             items = items.sort((a, b) => {
-                // Prioritize popular categories and high ratings
-                const popularCategories = ['Action', 'Drama', 'Comedy', 'Thriller', 'Romance'];
-                const categoryScoreA = popularCategories.indexOf(a.category) !== -1 ? 10 : 0;
-                const categoryScoreB = popularCategories.indexOf(b.category) !== -1 ? 10 : 0;
-                const ratingA = parseFloat(a.rating) || 0;
-                const ratingB = parseFloat(b.rating) || 0;
+                let scoreA = 0, scoreB = 0;
                 
-                const scoreA = categoryScoreA + ratingA;
-                const scoreB = categoryScoreB + ratingB;
+                // Factor 1: Category popularity (more items = more popular category)
+                scoreA += (categoryCount[a.category] || 0) * 2;
+                scoreB += (categoryCount[b.category] || 0) * 2;
+                
+                // Factor 2: Content completeness
+                if (a.poster) scoreA += 10;
+                if (b.poster) scoreB += 10;
+                if (a.plot) scoreA += 5;
+                if (b.plot) scoreB += 5;
+                if (a.year) scoreA += 3;
+                if (b.year) scoreB += 3;
+                
+                // Factor 3: Name recognition (common words)
+                const popularWords = ['the', 'and', 'of', 'in', 'to', 'a', 'is', 'it', 'you', 'that'];
+                const wordsA = a.name.toLowerCase().split(' ').filter(w => popularWords.includes(w)).length;
+                const wordsB = b.name.toLowerCase().split(' ').filter(w => popularWords.includes(w)).length;
+                scoreA += wordsA * 2;
+                scoreB += wordsB * 2;
                 
                 return scoreB - scoreA;
             });
             catalogName = '⭐ Popular';
         } else if (id.includes('recent')) {
-            // Recently added content - sort by year/date
+            // Recently added - sort by year and name
             items = addon.getCatalogItems(type, null, null);
+            console.log(`[RECENT] Processing ${items.length} items for recent`);
+            
             items = items.sort((a, b) => {
-                const yearA = a.year || 0;
-                const yearB = b.year || 0;
+                // Sort by year first (newest first)
+                const yearA = a.year || 1900;
+                const yearB = b.year || 1900;
                 if (yearB !== yearA) return yearB - yearA;
+                
+                // Then by name alphabetically
                 return a.name.localeCompare(b.name);
             });
             catalogName = '🆕 Recently Added';
@@ -1070,7 +1122,7 @@ module.exports = async function createAddon(config = {}) {
                 const response = await fetch(episodeUrl, { timeout: 10000 });
                 const seriesInfo = await response.json();
                 
-                console.log(`[SERIES] Series info response:`, JSON.stringify(seriesInfo, null, 2));
+                console.log(`[SERIES] Series info response for ${item.name}:`, JSON.stringify(seriesInfo, null, 2));
                 
                 if (seriesInfo && seriesInfo.episodes) {
                     const videos = [];
@@ -1085,59 +1137,91 @@ module.exports = async function createAddon(config = {}) {
                                 const seasonNum_int = parseInt(seasonNum);
                                 const episodeNum_int = parseInt(episode.episode_num);
                                 
-                                // Create ultra-rich episode overview
+                                // Create rich but reliable episode overview
                                 let overview = `🎬 ${item.name}\n`;
                                 overview += `📺 Season ${seasonNum_int} • Episode ${episodeNum_int}\n`;
                                 overview += `🎭 ${episodeTitle}\n\n`;
                                 
-                                // Plot/Description with enhanced formatting
-                                if (episode.info?.plot || episode.plot) {
-                                    const plot = episode.info?.plot || episode.plot;
+                                // Debug: Log what episode data we actually have
+                                console.log(`[EPISODE] Episode ${episodeNum_int} data:`, JSON.stringify(episode, null, 2));
+                                
+                                // Plot/Description
+                                const plot = episode.info?.plot || episode.plot || episode.info?.description || episode.description;
+                                if (plot && plot !== 'N/A' && plot.trim()) {
                                     overview += `📖 ${plot}\n\n`;
                                 }
                                 
-                                // Enhanced metadata section
-                                let metaSection = `📊 EPISODE DETAILS\n`;
+                                // Episode details section
+                                let hasDetails = false;
+                                let detailsSection = `📊 EPISODE INFO\n`;
                                 
-                                if (episode.info?.duration_secs) {
-                                    const duration = Math.round(episode.info.duration_secs / 60);
-                                    const hours = Math.floor(duration / 60);
-                                    const mins = duration % 60;
-                                    const timeStr = hours > 0 ? `${hours}h ${mins}m` : `${mins} minutes`;
-                                    metaSection += `⏱️ Duration: ${timeStr}\n`;
+                                // Duration
+                                const duration = episode.info?.duration_secs || episode.duration_secs || episode.info?.duration;
+                                if (duration && duration > 0) {
+                                    const mins = Math.round(duration / 60);
+                                    const hours = Math.floor(mins / 60);
+                                    const remainingMins = mins % 60;
+                                    const timeStr = hours > 0 ? `${hours}h ${remainingMins}m` : `${mins} minutes`;
+                                    detailsSection += `⏱️ Duration: ${timeStr}\n`;
+                                    hasDetails = true;
                                 }
                                 
-                                if (episode.air_date || episode.releasedate) {
-                                    const date = episode.air_date || episode.releasedate;
-                                    const formattedDate = new Date(date).toLocaleDateString('en-US', {
-                                        year: 'numeric',
-                                        month: 'long',
-                                        day: 'numeric'
-                                    });
-                                    metaSection += `📅 Air Date: ${formattedDate}\n`;
+                                // Air date
+                                const airDate = episode.air_date || episode.releasedate || episode.info?.air_date || episode.info?.releasedate;
+                                if (airDate && airDate !== 'N/A') {
+                                    try {
+                                        const date = new Date(airDate);
+                                        if (!isNaN(date.getTime())) {
+                                            const formattedDate = date.toLocaleDateString('en-US', {
+                                                year: 'numeric',
+                                                month: 'long',
+                                                day: 'numeric'
+                                            });
+                                            detailsSection += `📅 Air Date: ${formattedDate}\n`;
+                                            hasDetails = true;
+                                        }
+                                    } catch (e) {
+                                        // Invalid date, skip
+                                    }
                                 }
                                 
-                                if (episode.info?.rating && episode.info.rating !== "0.0") {
-                                    const rating = parseFloat(episode.info.rating);
-                                    const stars = '⭐'.repeat(Math.round(rating / 2));
-                                    metaSection += `${stars} Rating: ${rating}/10\n`;
+                                // Rating
+                                const rating = episode.info?.rating || episode.rating || episode.info?.imdb_rating;
+                                if (rating && rating !== "0.0" && rating !== "N/A") {
+                                    const ratingNum = parseFloat(rating);
+                                    if (!isNaN(ratingNum) && ratingNum > 0) {
+                                        const stars = '⭐'.repeat(Math.min(5, Math.round(ratingNum / 2)));
+                                        detailsSection += `${stars} Rating: ${ratingNum}/10\n`;
+                                        hasDetails = true;
+                                    }
                                 }
                                 
-                                // Additional episode info
-                                if (episode.info?.genre) {
-                                    metaSection += `🎭 Genre: ${episode.info.genre}\n`;
+                                // Genre
+                                const genre = episode.info?.genre || episode.genre;
+                                if (genre && genre !== 'N/A' && genre.trim()) {
+                                    detailsSection += `🎭 Genre: ${genre}\n`;
+                                    hasDetails = true;
                                 }
                                 
-                                if (episode.info?.director) {
-                                    metaSection += `🎬 Director: ${episode.info.director}\n`;
+                                // Director
+                                const director = episode.info?.director || episode.director;
+                                if (director && director !== 'N/A' && director.trim()) {
+                                    detailsSection += `🎬 Director: ${director}\n`;
+                                    hasDetails = true;
                                 }
                                 
-                                if (episode.info?.cast || episode.info?.actors) {
-                                    const cast = episode.info?.cast || episode.info?.actors;
-                                    metaSection += `👥 Cast: ${cast}\n`;
+                                // Cast
+                                const cast = episode.info?.cast || episode.info?.actors || episode.cast || episode.actors;
+                                if (cast && cast !== 'N/A' && cast.trim()) {
+                                    detailsSection += `👥 Cast: ${cast}\n`;
+                                    hasDetails = true;
                                 }
                                 
-                                overview += metaSection + `\n`;
+                                // Add details section if we have any details
+                                if (hasDetails) {
+                                    overview += detailsSection + `\n`;
+                                }
+                                
                                 overview += `🚀 Streaming via Taksos IPTV Addon\n`;
                                 overview += `📡 Professional IPTV • Premium Quality`;
                                 
