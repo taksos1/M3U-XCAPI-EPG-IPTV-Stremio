@@ -1,7 +1,7 @@
 {
-  "name": "ultimate-iptv-stremio-addon",
+  "name": "taksos-iptv-stremio-addon",
   "version": "3.0.0",
-  "description": "🎬 The ultimate IPTV addon for Stremio with IMDB integration, smart Arabic/English search, and seamless streaming experience",
+  "description": "🎬 Taksos IPTV Addon - Professional IPTV streaming for Stremio with IMDB integration, smart Arabic/English search, and premium user experience",
   "main": "serverless.js",
   "scripts": {
     "dev": "vercel dev",
@@ -9,6 +9,7 @@
     "start": "node serverless.js"
   },
   "keywords": [
+    "taksos",
     "stremio",
     "iptv",
     "m3u",
@@ -17,7 +18,9 @@
     "arabic",
     "streaming",
     "vercel",
-    "serverless"
+    "serverless",
+    "professional",
+    "premium"
   ],
   "dependencies": {
     "dotenv": "^16.3.1",

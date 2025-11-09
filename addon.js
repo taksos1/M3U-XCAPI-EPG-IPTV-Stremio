@@ -2,8 +2,8 @@ const { addonBuilder } = require('stremio-addon-sdk');
 const fetch = require('node-fetch');
 const crypto = require('crypto');
 
-const ADDON_ID = 'org.stremio.iptv.selfhosted';
-const ADDON_NAME = 'IPTV Self-Hosted';
+const ADDON_ID = 'org.taksos.iptv.ultimate';
+const ADDON_NAME = '🎬 Taksos IPTV Addon';
 
 // Simple in-memory cache to reduce IPTV server load
 const cache = new Map();
@@ -726,12 +726,14 @@ class IPTVAddon {
             meta.cast = imdbData.actors ? imdbData.actors.split(', ').slice(0, 4) : [];
             meta.runtime = imdbData.runtime;
             
-            // Enhanced description with IMDB data
+            // Enhanced description with IMDB data and Taksos branding
             let description = '';
             if (imdbData.imdbRating) description += `⭐ ${imdbData.imdbRating}/10 • `;
             if (imdbData.runtime) description += `⏱️ ${imdbData.runtime} • `;
             if (imdbData.director) description += `🎬 ${imdbData.director}\n\n`;
             description += imdbData.plot || `${item.type === 'series' ? 'TV Show' : 'Movie'}: ${item.name}`;
+            description += `\n\n🚀 Streaming via Taksos IPTV Addon`;
+            description += `\n📡 High-quality IPTV streaming with IMDB integration`;
             
             meta.description = description;
         } else {
@@ -744,11 +746,12 @@ class IPTVAddon {
             }
 
             if (item.type === 'tv') {
-                meta.poster = item.logo || `https://via.placeholder.com/300x400/333/fff?text=${encodeURIComponent(item.name)}`;
-                meta.description += `📺 Live Channel: ${item.name}`;
+                meta.poster = item.logo || `https://via.placeholder.com/300x400/7043ff/ffffff?text=${encodeURIComponent(item.name)}`;
+                meta.description += `📺 Live Channel: ${item.name}\n\n🚀 Streaming via Taksos IPTV Addon\n📡 Professional IPTV experience with smart search`;
             } else {
-                meta.poster = item.poster || `https://via.placeholder.com/300x450/666/fff?text=${encodeURIComponent(item.name)}`;
-                meta.description += item.plot || `${item.type === 'series' ? 'TV Show' : 'Movie'}: ${item.name}`;
+                meta.poster = item.poster || `https://via.placeholder.com/300x450/7043ff/ffffff?text=${encodeURIComponent(item.name)}`;
+                meta.description += item.plot || `${item.type === 'series' ? '📺 TV Show' : '🎬 Movie'}: ${item.name}`;
+                meta.description += `\n\n🚀 Streaming via Taksos IPTV Addon\n📡 High-quality streaming with Arabic/English search`;
                 if (item.year) meta.year = item.year;
             }
         }
@@ -827,25 +830,26 @@ module.exports = async function createAddon(config = {}) {
 
     const manifest = {
         id: ADDON_ID,
-        version: "2.0.0",
+        version: "3.0.0",
         name: ADDON_NAME,
-        description: "Self-hosted IPTV addon - provides streams for search results",
-        logo: "https://via.placeholder.com/256x256/4CAF50/ffffff?text=IPTV",
+        description: "🚀 Ultimate IPTV experience with IMDB integration, smart Arabic/English search & professional streaming quality by Taksos",
+        logo: "https://i.imgur.com/X8K9YzF.png",
+        background: "https://i.imgur.com/dQjTuXK.jpg",
         resources: ["catalog", "stream", "meta"],
         types: ["tv", "movie", "series"],
         catalogs: [
             {
                 type: 'movie',
-                id: 'iptv_movies_search',
-                name: 'IPTV Movies',
+                id: 'taksos_movies_search',
+                name: '🎬 Taksos Movies',
                 extra: [
                     { name: 'search', isRequired: true }
                 ]
             },
             {
                 type: 'series',
-                id: 'iptv_series_search',
-                name: 'IPTV Series',
+                id: 'taksos_series_search',
+                name: '📺 Taksos Series',
                 extra: [
                     { name: 'search', isRequired: true }
                 ]
@@ -926,15 +930,46 @@ module.exports = async function createAddon(config = {}) {
                         const season = seriesInfo.episodes[seasonNum];
                         if (Array.isArray(season)) {
                             season.forEach(episode => {
+                                // Enhanced episode information with professional formatting
+                                const episodeTitle = episode.title || `Episode ${episode.episode_num}`;
+                                const seasonNum_int = parseInt(seasonNum);
+                                const episodeNum_int = parseInt(episode.episode_num);
+                                
+                                // Create rich episode overview
+                                let overview = `🎬 ${item.name}\n`;
+                                overview += `📺 Season ${seasonNum_int} • Episode ${episodeNum_int}\n`;
+                                overview += `🎭 ${episodeTitle}\n\n`;
+                                
+                                if (episode.info?.plot || episode.plot) {
+                                    overview += `📖 ${episode.info?.plot || episode.plot}\n\n`;
+                                }
+                                
+                                if (episode.info?.duration_secs) {
+                                    const duration = Math.round(episode.info.duration_secs / 60);
+                                    overview += `⏱️ Duration: ${duration} minutes\n`;
+                                }
+                                
+                                if (episode.air_date || episode.releasedate) {
+                                    const date = episode.air_date || episode.releasedate;
+                                    overview += `📅 Released: ${date}\n`;
+                                }
+                                
+                                if (episode.info?.rating && episode.info.rating !== "0.0") {
+                                    overview += `⭐ Rating: ${episode.info.rating}/10\n`;
+                                }
+                                
+                                overview += `\n🚀 Powered by Taksos IPTV Addon`;
+                                
                                 videos.push({
                                     id: `${item.id}:${seasonNum}:${episode.episode_num}`,
-                                    title: episode.title || `Episode ${episode.episode_num}`,
-                                    season: parseInt(seasonNum),
-                                    episode: parseInt(episode.episode_num),
-                                    overview: `Season ${seasonNum} Episode ${episode.episode_num}`,
-                                    thumbnail: episode.info?.movie_image,
-                                    released: episode.air_date,
-                                    duration: episode.info?.duration_secs
+                                    title: `S${seasonNum_int}E${episodeNum_int.toString().padStart(2, '0')} • ${episodeTitle}`,
+                                    season: seasonNum_int,
+                                    episode: episodeNum_int,
+                                    overview: overview,
+                                    thumbnail: episode.info?.movie_image || episode.info?.episode_image || item.poster,
+                                    released: episode.air_date || episode.releasedate,
+                                    duration: episode.info?.duration_secs,
+                                    rating: episode.info?.rating && episode.info.rating !== "0.0" ? parseFloat(episode.info.rating) : null
                                 });
                             });
                         }
@@ -952,24 +987,26 @@ module.exports = async function createAddon(config = {}) {
                     console.log(`[SERIES] Sample episodes:`, meta.videos.slice(0, 3).map(v => `${v.title} (S${v.season}E${v.episode})`));
                 } else {
                     console.log(`[SERIES] No episodes found for series ${seriesId}`);
-                    // Add placeholder if no episodes found
+                    // Add enhanced placeholder if no episodes found
                     meta.videos = [{
                         id: `${item.id}:1:1`,
-                        title: "Episode 1",
+                        title: "S01E01 • Episode 1",
                         season: 1,
                         episode: 1,
-                        overview: "Episode information not available"
+                        overview: `🎬 ${item.name}\n📺 Season 1 • Episode 1\n🎭 Episode 1\n\n📖 Episode information is currently being loaded...\n\n🚀 Powered by Taksos IPTV Addon`,
+                        thumbnail: item.poster
                     }];
                 }
             } catch (error) {
                 console.error(`[SERIES] Error fetching episodes for ${item.name}:`, error.message);
-                // Add placeholder on error
+                // Add enhanced placeholder on error
                 meta.videos = [{
                     id: `${item.id}:1:1`,
-                    title: "Episode 1",
+                    title: "S01E01 • Episode 1",
                     season: 1,
                     episode: 1,
-                    overview: "Unable to load episode information"
+                    overview: `🎬 ${item.name}\n📺 Season 1 • Episode 1\n🎭 Episode 1\n\n⚠️ Unable to load episode information at this time.\nPlease try again later.\n\n🚀 Powered by Taksos IPTV Addon`,
+                    thumbnail: item.poster
                 }];
             }
         }
