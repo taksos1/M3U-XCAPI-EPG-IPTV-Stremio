@@ -839,19 +839,33 @@ module.exports = async function createAddon(config = {}) {
         types: ["tv", "movie", "series"],
         catalogs: [
             {
+                type: 'tv',
+                id: 'taksos_live_tv',
+                name: '📺 Taksos Live TV',
+                extra: [
+                    { name: 'genre', options: ['All Channels', ...addon.categories.live.slice(0, 20)] },
+                    { name: 'search' },
+                    { name: 'skip' }
+                ]
+            },
+            {
                 type: 'movie',
-                id: 'taksos_movies_search',
+                id: 'taksos_movies',
                 name: '🎬 Taksos Movies',
                 extra: [
-                    { name: 'search', isRequired: true }
+                    { name: 'genre', options: ['All Movies', ...addon.categories.movies.slice(0, 15)] },
+                    { name: 'search' },
+                    { name: 'skip' }
                 ]
             },
             {
                 type: 'series',
-                id: 'taksos_series_search',
+                id: 'taksos_series',
                 name: '📺 Taksos Series',
                 extra: [
-                    { name: 'search', isRequired: true }
+                    { name: 'genre', options: ['All Series', ...addon.categories.series.slice(0, 15)] },
+                    { name: 'search' },
+                    { name: 'skip' }
                 ]
             }
         ],
@@ -866,23 +880,55 @@ module.exports = async function createAddon(config = {}) {
 
     builder.defineCatalogHandler(async (args) => {
         const { type, id, extra = {} } = args;
-        console.log(`[CATALOG] Request: type=${type}, id=${id}, search=${extra.search}`);
+        console.log(`[CATALOG] 🎬 Taksos IPTV Request: type=${type}, id=${id}, genre=${extra.genre}, search=${extra.search}`);
         
-        // Only respond to search requests
-        if (!extra.search) {
-            return { metas: [] };
+        // Handle both genre browsing and search
+        const items = addon.getCatalogItems(type, extra.genre, extra.search);
+        const skip = parseInt(extra.skip) || 0;
+        
+        // For browsing (no search), show more items. For search, limit for IMDB calls
+        const itemsPerPage = extra.search ? 20 : 50;
+        const limitedItems = items.slice(skip, skip + itemsPerPage);
+        
+        // Generate metadata with IMDB enrichment (parallel processing for search, faster for browsing)
+        let metas;
+        if (extra.search) {
+            // Full IMDB enrichment for search results
+            metas = await Promise.all(
+                limitedItems.map(item => addon.generateMeta(item))
+            );
+        } else {
+            // Faster metadata for browsing (no IMDB calls)
+            metas = limitedItems.map(item => {
+                const meta = {
+                    id: item.id,
+                    type: item.type,
+                    name: item.name,
+                    genres: [item.category],
+                    poster: item.poster || item.logo || `https://via.placeholder.com/300x450/7043ff/ffffff?text=${encodeURIComponent(item.name)}`
+                };
+                
+                if (item.year) meta.year = item.year;
+                
+                // Add Taksos branding to description
+                if (item.type === 'tv') {
+                    meta.description = `📺 ${item.name}\n\n🚀 Live streaming via Taksos IPTV Addon\n📡 Professional IPTV experience`;
+                } else {
+                    meta.description = `${item.type === 'series' ? '📺' : '🎬'} ${item.name}\n\n🚀 Streaming via Taksos IPTV Addon\n📡 High-quality ${item.type} streaming`;
+                    if (item.plot) {
+                        meta.description = `${item.plot}\n\n🚀 Streaming via Taksos IPTV Addon`;
+                    }
+                }
+                
+                return meta;
+            });
         }
         
-        const items = addon.getCatalogItems(type, null, extra.search);
-        const skip = parseInt(extra.skip) || 0;
-        const limitedItems = items.slice(skip, skip + 20); // Limit for IMDB API calls
+        const logMessage = extra.search 
+            ? `🔍 Search "${extra.search}"` 
+            : `📂 Browse ${extra.genre || 'All'}`;
+        console.log(`[CATALOG] 🎬 Taksos IPTV: Returning ${metas.length} items for ${logMessage}`);
         
-        // Generate metadata with IMDB enrichment (parallel processing)
-        const metas = await Promise.all(
-            limitedItems.map(item => addon.generateMeta(item))
-        );
-        
-        console.log(`[CATALOG] Returning ${metas.length} items for search: "${extra.search}"`);
         return { metas };
     });
 
