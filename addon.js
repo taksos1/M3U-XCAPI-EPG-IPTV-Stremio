@@ -418,55 +418,98 @@ class IPTVAddon {
             items = items.filter(item => item.category === genre);
         }
 
-        // Filter by search with improved matching
+        // Filter by search with intelligent scoring
         if (search) {
             const searchLower = search.toLowerCase().trim();
-            items = items.filter(item => {
+            const matchedItems = [];
+            
+            items.forEach(item => {
                 const itemName = item.name.toLowerCase();
                 const itemCategory = item.category.toLowerCase();
+                let matchScore = 0;
                 
-                // Direct match
-                if (itemName.includes(searchLower) || itemCategory.includes(searchLower)) {
-                    return true;
+                // Exact name match (highest priority)
+                if (itemName === searchLower) {
+                    matchScore = 100;
+                } else if (itemName.includes(searchLower)) {
+                    // Partial name match
+                    matchScore = 80 + (searchLower.length / itemName.length) * 15;
+                } else if (itemCategory.includes(searchLower)) {
+                    matchScore = 60;
                 }
                 
-                // Word-by-word matching (handles partial searches better)
-                const searchWords = searchLower.split(/\s+/);
-                const nameWords = itemName.split(/\s+/);
-                const categoryWords = itemCategory.split(/\s+/);
-                
-                const hasWordMatch = searchWords.some(searchWord => 
-                    nameWords.some(nameWord => nameWord.includes(searchWord)) ||
-                    categoryWords.some(catWord => catWord.includes(searchWord))
-                );
-                
-                if (hasWordMatch) return true;
-                
-                // Transliteration matching for Arabic content
-                const transliterations = this.getTransliterations(searchLower);
-                const hasTransMatch = transliterations.some(trans => {
-                    if (itemName.includes(trans) || itemCategory.includes(trans)) {
-                        return true;
+                // Enhanced transliteration matching for popular shows
+                if (matchScore === 0) {
+                    const transliterations = this.getTransliterations(searchLower);
+                    for (const trans of transliterations) {
+                        if (itemName.includes(trans)) {
+                            matchScore = Math.max(matchScore, 75);
+                        } else if (itemCategory.includes(trans)) {
+                            matchScore = Math.max(matchScore, 55);
+                        }
+                        
+                        // Word-by-word transliteration matching
+                        const transWords = trans.split(/\s+/);
+                        const nameWords = itemName.split(/\s+/);
+                        const categoryWords = itemCategory.split(/\s+/);
+                        
+                        const transMatches = transWords.filter(transWord => 
+                            nameWords.some(nameWord => nameWord.includes(transWord)) ||
+                            categoryWords.some(catWord => catWord.includes(transWord))
+                        );
+                        
+                        if (transMatches.length > 0) {
+                            const wordMatchScore = 40 + (transMatches.length / transWords.length) * 20;
+                            matchScore = Math.max(matchScore, wordMatchScore);
+                        }
                     }
-                    // Also check word-by-word for transliterations
-                    const transWords = trans.split(/\s+/);
-                    return transWords.some(transWord => 
-                        nameWords.some(nameWord => nameWord.includes(transWord)) ||
-                        categoryWords.some(catWord => catWord.includes(transWord))
-                    );
-                });
+                }
                 
-                return hasTransMatch;
+                // Word-by-word matching for partial searches
+                if (matchScore === 0) {
+                    const searchWords = searchLower.split(/\s+/);
+                    const nameWords = itemName.split(/\s+/);
+                    const categoryWords = itemCategory.split(/\s+/);
+                    
+                    const wordMatches = searchWords.filter(searchWord => 
+                        nameWords.some(nameWord => nameWord.includes(searchWord)) ||
+                        categoryWords.some(catWord => catWord.includes(searchWord))
+                    );
+                    
+                    if (wordMatches.length > 0) {
+                        matchScore = 30 + (wordMatches.length / searchWords.length) * 25;
+                    }
+                }
+                
+                // Add item with score if it matches
+                if (matchScore > 0) {
+                    matchedItems.push({ ...item, _matchScore: matchScore });
+                }
             });
+            
+            // Sort by match score (highest first), then by name
+            items = matchedItems
+                .sort((a, b) => {
+                    if (b._matchScore !== a._matchScore) {
+                        return b._matchScore - a._matchScore;
+                    }
+                    return a.name.localeCompare(b.name);
+                })
+                .map(item => {
+                    delete item._matchScore;
+                    return item;
+                });
         }
 
-        // Sort by category then name
-        items.sort((a, b) => {
-            if (a.category !== b.category) {
-                return a.category.localeCompare(b.category);
-            }
-            return a.name.localeCompare(b.name);
-        });
+        // If no search, sort by category then name
+        if (!search) {
+            items.sort((a, b) => {
+                if (a.category !== b.category) {
+                    return a.category.localeCompare(b.category);
+                }
+                return a.name.localeCompare(b.name);
+            });
+        }
 
         return items;
     }
@@ -525,8 +568,9 @@ class IPTVAddon {
         
         results.push(...arabicVariations.filter(v => v.length > 1));
         
-        // Common word replacements
+        // Common word replacements - Enhanced for popular shows
         const commonWords = {
+            // Names
             'omar': 'عمر',
             'ahmed': 'أحمد',
             'mohamed': 'محمد',
@@ -534,13 +578,31 @@ class IPTVAddon {
             'hassan': 'حسن',
             'fatima': 'فاطمة',
             'aisha': 'عائشة',
+            
+            // Content types
             'series': 'مسلسل',
             'movie': 'فيلم',
             'episode': 'حلقة',
             'season': 'موسم',
             'show': 'برنامج',
             'drama': 'دراما',
-            'comedy': 'كوميديا'
+            'comedy': 'كوميديا',
+            
+            // Popular shows - Enhanced for Paranormal
+            'paranormal': 'ما وراء الطبيعة',
+            'ma wara2 el tabe3a': 'ما وراء الطبيعة',
+            'ma wara el tabe3a': 'ما وراء الطبيعة',
+            'wara2 el tabe3a': 'ما وراء الطبيعة',
+            'supernatural': 'ما وراء الطبيعة',
+            'بارانورمال': 'paranormal',
+            
+            // Other popular shows
+            'la casa de papel': 'بيت من ورق',
+            'money heist': 'بيت من ورق',
+            'casa de papel': 'بيت من ورق',
+            'breaking bad': 'بريكنغ باد',
+            'game of thrones': 'صراع العروش',
+            'prison break': 'هروب السجن'
         };
         
         // Replace known words
