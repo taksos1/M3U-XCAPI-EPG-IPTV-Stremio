@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Xtream API Configuration • IPTV Addon</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="color-scheme" content="dark light">
+    <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body class="page-config">
+<header class="site-header">
+    <div class="inner">
+        <h1 class="app-title">Xtream Codes API</h1>
+        <p class="subtitle">Connect using panel credentials and an optional custom EPG.</p>
+        <nav class="top-nav">
+            <a href="/" class="nav-link">Home</a>
+            <a href="/html/direct-config.html" class="nav-link">Direct Mode</a>
+        </nav>
+    </div>
+</header>
+
+<main class="main-content narrow">
+    <form id="xtreamForm" class="config-form" autocomplete="off">
+        <fieldset>
+            <legend>Credentials</legend>
+            <div class="form-group">
+                <label for="xtreamUrl">Xtream Base URL <span class="req">*</span></label>
+                <input type="url" id="xtreamUrl" name="xtreamUrl" required placeholder="http://panel.example.com:8080">
+                <small class="hint">Do not include a trailing slash.</small>
+            </div>
+            <div class="form-group">
+                <label for="xtreamUsername">Username <span class="req">*</span></label>
+                <input type="text" id="xtreamUsername" name="xtreamUsername" required>
+            </div>
+            <div class="form-group password-group">
+                <label for="xtreamPassword">Password <span class="req">*</span></label>
+                <div class="pwd-wrapper">
+                    <input type="password" id="xtreamPassword" name="xtreamPassword" required>
+                    <button type="button" id="togglePwd" class="btn tiny ghost">Show</button>
+                </div>
+            </div>
+        </fieldset>
+
+        <fieldset>
+            <legend>Stream Source</legend>
+            <div class="form-group checkbox-line">
+                <input type="checkbox" id="xtreamUseM3U" name="xtreamUseM3U">
+                <label class="checkbox-label" for="xtreamUseM3U" class="inline">Use m3u_plus playlist (instead of JSON)</label>
+            </div>
+            <div class="form-group hidden" id="xtreamOutputGroup">
+                <label for="xtreamOutput">M3U Output Format</label>
+                <input type="text" id="xtreamOutput" name="xtreamOutput" placeholder="ts / hls / mpegts">
+                <small class="hint">Leave blank for panel default.</small>
+            </div>
+        </fieldset>
+
+        <fieldset>
+            <legend>EPG Options</legend>
+            <div class="form-group checkbox-line">
+                <input type="checkbox" id="enableEpg" name="enableEpg" checked>
+                <label class="checkbox-label" for="enableEpg" class="inline">Enable EPG</label>
+            </div>
+
+            <div id="epgModeBlock" class="form-group">
+                <label class="group-label">EPG Source Mode</label>
+                <div class="radio-group">
+                    <label class="checkbox-line">
+                        <input type="radio" name="epgMode" value="xtream" checked>
+                        <span class="checkbox-label">Panel XMLTV</span>
+                    </label>
+                    <label class="checkbox-line">
+                        <input type="radio" name="epgMode" value="custom">
+                        <span class="checkbox-label">Custom EPG URL</span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="form-group hidden" id="customEpgGroup">
+                <label for="customEpgUrl">Custom EPG XML URL</label>
+                <input type="url" id="customEpgUrl" name="customEpgUrl" placeholder="https://example.com/epg.xml">
+                <small class="hint">Used instead of panel xmltv.php when selected.</small>
+            </div>
+
+            <div class="form-group">
+                <label for="epgOffsetHours">EPG Offset (hours)</label>
+                <input type="number" step="0.25" id="epgOffsetHours" name="epgOffsetHours" placeholder="0">
+            </div>
+        </fieldset>
+
+        <fieldset>
+            <legend>Diagnostics</legend>
+            <div class="form-group checkbox-line">
+                <input type="checkbox" id="debugMode" name="debugMode">
+                <label class="checkbox-label" for="debugMode" class="inline">Enable Debug Logging</label>
+            </div>
+        </fieldset>
+
+        <div class="form-actions">
+            <button type="submit" class="btn primary wide">Install / Update (Xtream)</button>
+            <a href="/html/direct-config.html" class="btn subtle">Switch to Direct</a>
+        </div>
+        <div class="donate-inline under-form">
+            <p class="hint" style="margin:.4rem 0 .6rem;">Enjoying the addon? Support development:</p>
+            <script type="text/javascript"
+                    src="https://cdnjs.buymeacoffee.com/1.0.0/button.prod.min.js"
+                    data-name="bmc-button"
+                    data-slug="K3QSoR2"
+                    data-color="#BD5FFF"
+                    data-emoji="☕"
+                    data-font="Cookie"
+                    data-text="Buy me a coffee"
+                    data-outline-color="#000000"
+                    data-font-color="#ffffff"
+                    data-coffee-color="#FFDD00">
+            </script>
+        </div>
+    </form>
+
+    <section class="info-panel">
+        <h3>Hints</h3>
+        <ul class="feature-list">
+            <li>JSON mode fetches live, VOD and (optional) panel EPG.</li>
+            <li>M3U mode parses the entire exported playlist client-side.</li>
+            <li>You can override the panel EPG with a custom XMLTV feed.</li>
+            <li>Series (shows) are supported in both modes (heuristic for M3U).</li>
+        </ul>
+    </section>
+</main>
+
+<footer class="site-footer">
+    <div class="inner">
+        <p>&copy; 2025 M3U/EPG Addon • Made with ❤️ by Inside4ndroid • Xtream Mode</p>
+    </div>
+</footer>
+
+<div id="loaderOverlay" class="overlay hidden">
+    <div class="overlay-box">
+        <header class="overlay-header">
+            <h2 id="loaderMessage">Starting…</h2>
+            <p class="overlay-sub" id="progressText">0%</p>
+        </header>
+        <div class="progress-track"><div id="progressBar" class="progress-fill" style="width:0%"></div></div>
+        <pre id="statusDetails" class="status-log" aria-live="polite"></pre>
+        <div class="overlay-actions">
+            <button id="openStremioBtn" class="btn success" disabled>Open in Stremio</button>
+            <button id="copyManifestBtn" class="btn secondary" disabled>Copy Manifest URL</button>
+        </div>
+    </div>
+</div>
+
+<script src="/js/configure-common.js"></script>
+<script src="/js/xtream-config.js"></script>
+</body>
+</html>
