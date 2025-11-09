@@ -838,10 +838,61 @@ module.exports = async function createAddon(config = {}) {
         resources: ["catalog", "stream", "meta"],
         types: ["tv", "movie", "series"],
         catalogs: [
+            // Discovery Catalogs - What's Hot & Trending
+            {
+                type: 'movie',
+                id: 'taksos_trending_movies',
+                name: '🔥 Trending Movies',
+                extra: [
+                    { name: 'skip' }
+                ]
+            },
+            {
+                type: 'series',
+                id: 'taksos_trending_series',
+                name: '🔥 Trending Series',
+                extra: [
+                    { name: 'skip' }
+                ]
+            },
+            {
+                type: 'movie',
+                id: 'taksos_popular_movies',
+                name: '⭐ Popular Movies',
+                extra: [
+                    { name: 'skip' }
+                ]
+            },
+            {
+                type: 'series',
+                id: 'taksos_popular_series',
+                name: '⭐ Popular Series',
+                extra: [
+                    { name: 'skip' }
+                ]
+            },
+            {
+                type: 'movie',
+                id: 'taksos_recent_movies',
+                name: '🆕 Recently Added Movies',
+                extra: [
+                    { name: 'skip' }
+                ]
+            },
+            {
+                type: 'series',
+                id: 'taksos_recent_series',
+                name: '🆕 Recently Added Series',
+                extra: [
+                    { name: 'skip' }
+                ]
+            },
+            
+            // Browse by Category Catalogs
             {
                 type: 'tv',
                 id: 'taksos_live_tv',
-                name: '📺 Taksos Live TV',
+                name: '📺 Browse Live TV',
                 extra: [
                     { name: 'genre', options: ['All Channels', ...addon.categories.live.slice(0, 20)] },
                     { name: 'search' },
@@ -851,7 +902,7 @@ module.exports = async function createAddon(config = {}) {
             {
                 type: 'movie',
                 id: 'taksos_movies',
-                name: '🎬 Taksos Movies',
+                name: '🎬 Browse Movies',
                 extra: [
                     { name: 'genre', options: ['All Movies', ...addon.categories.movies.slice(0, 15)] },
                     { name: 'search' },
@@ -861,7 +912,7 @@ module.exports = async function createAddon(config = {}) {
             {
                 type: 'series',
                 id: 'taksos_series',
-                name: '📺 Taksos Series',
+                name: '📺 Browse Series',
                 extra: [
                     { name: 'genre', options: ['All Series', ...addon.categories.series.slice(0, 15)] },
                     { name: 'search' },
@@ -882,23 +933,71 @@ module.exports = async function createAddon(config = {}) {
         const { type, id, extra = {} } = args;
         console.log(`[CATALOG] 🎬 Taksos IPTV Request: type=${type}, id=${id}, genre=${extra.genre}, search=${extra.search}`);
         
-        // Handle both genre browsing and search
-        const items = addon.getCatalogItems(type, extra.genre, extra.search);
+        let items = [];
+        let catalogName = '';
+        
+        // Handle different catalog types
+        if (id.includes('trending')) {
+            // Trending content - sort by popularity/rating
+            items = addon.getCatalogItems(type, null, null);
+            items = items.sort((a, b) => {
+                // Sort by rating first, then by name
+                const ratingA = parseFloat(a.rating) || 0;
+                const ratingB = parseFloat(b.rating) || 0;
+                if (ratingB !== ratingA) return ratingB - ratingA;
+                return a.name.localeCompare(b.name);
+            });
+            catalogName = '🔥 Trending';
+        } else if (id.includes('popular')) {
+            // Popular content - sort by category popularity and rating
+            items = addon.getCatalogItems(type, null, null);
+            items = items.sort((a, b) => {
+                // Prioritize popular categories and high ratings
+                const popularCategories = ['Action', 'Drama', 'Comedy', 'Thriller', 'Romance'];
+                const categoryScoreA = popularCategories.indexOf(a.category) !== -1 ? 10 : 0;
+                const categoryScoreB = popularCategories.indexOf(b.category) !== -1 ? 10 : 0;
+                const ratingA = parseFloat(a.rating) || 0;
+                const ratingB = parseFloat(b.rating) || 0;
+                
+                const scoreA = categoryScoreA + ratingA;
+                const scoreB = categoryScoreB + ratingB;
+                
+                return scoreB - scoreA;
+            });
+            catalogName = '⭐ Popular';
+        } else if (id.includes('recent')) {
+            // Recently added content - sort by year/date
+            items = addon.getCatalogItems(type, null, null);
+            items = items.sort((a, b) => {
+                const yearA = a.year || 0;
+                const yearB = b.year || 0;
+                if (yearB !== yearA) return yearB - yearA;
+                return a.name.localeCompare(b.name);
+            });
+            catalogName = '🆕 Recently Added';
+        } else {
+            // Regular browsing and search
+            items = addon.getCatalogItems(type, extra.genre, extra.search);
+            catalogName = extra.search ? `🔍 Search "${extra.search}"` : `📂 Browse ${extra.genre || 'All'}`;
+        }
+        
         const skip = parseInt(extra.skip) || 0;
         
-        // For browsing (no search), show more items. For search, limit for IMDB calls
-        const itemsPerPage = extra.search ? 20 : 50;
+        // For discovery catalogs, show fewer items but with IMDB enrichment
+        // For browsing/search, use existing logic
+        const isDiscovery = id.includes('trending') || id.includes('popular') || id.includes('recent');
+        const itemsPerPage = isDiscovery ? 30 : (extra.search ? 20 : 50);
         const limitedItems = items.slice(skip, skip + itemsPerPage);
         
-        // Generate metadata with IMDB enrichment (parallel processing for search, faster for browsing)
+        // Generate metadata with appropriate enrichment
         let metas;
-        if (extra.search) {
-            // Full IMDB enrichment for search results
+        if (extra.search || isDiscovery) {
+            // Full IMDB enrichment for search results and discovery catalogs
             metas = await Promise.all(
                 limitedItems.map(item => addon.generateMeta(item))
             );
         } else {
-            // Faster metadata for browsing (no IMDB calls)
+            // Faster metadata for regular browsing
             metas = limitedItems.map(item => {
                 const meta = {
                     id: item.id,
@@ -910,24 +1009,29 @@ module.exports = async function createAddon(config = {}) {
                 
                 if (item.year) meta.year = item.year;
                 
-                // Add Taksos branding to description
+                // Enhanced descriptions with discovery context
                 if (item.type === 'tv') {
                     meta.description = `📺 ${item.name}\n\n🚀 Live streaming via Taksos IPTV Addon\n📡 Professional IPTV experience`;
                 } else {
-                    meta.description = `${item.type === 'series' ? '📺' : '🎬'} ${item.name}\n\n🚀 Streaming via Taksos IPTV Addon\n📡 High-quality ${item.type} streaming`;
+                    let description = `${item.type === 'series' ? '📺' : '🎬'} ${item.name}`;
                     if (item.plot) {
-                        meta.description = `${item.plot}\n\n🚀 Streaming via Taksos IPTV Addon`;
+                        description = item.plot;
                     }
+                    
+                    // Add discovery badges
+                    if (id.includes('trending')) description += `\n\n🔥 TRENDING NOW`;
+                    else if (id.includes('popular')) description += `\n\n⭐ POPULAR CHOICE`;
+                    else if (id.includes('recent')) description += `\n\n🆕 RECENTLY ADDED`;
+                    
+                    description += `\n\n🚀 Streaming via Taksos IPTV Addon\n📡 Premium ${item.type} experience`;
+                    meta.description = description;
                 }
                 
                 return meta;
             });
         }
         
-        const logMessage = extra.search 
-            ? `🔍 Search "${extra.search}"` 
-            : `📂 Browse ${extra.genre || 'All'}`;
-        console.log(`[CATALOG] 🎬 Taksos IPTV: Returning ${metas.length} items for ${logMessage}`);
+        console.log(`[CATALOG] 🎬 Taksos IPTV: Returning ${metas.length} items for ${catalogName}`);
         
         return { metas };
     });
@@ -981,30 +1085,61 @@ module.exports = async function createAddon(config = {}) {
                                 const seasonNum_int = parseInt(seasonNum);
                                 const episodeNum_int = parseInt(episode.episode_num);
                                 
-                                // Create rich episode overview
+                                // Create ultra-rich episode overview
                                 let overview = `🎬 ${item.name}\n`;
                                 overview += `📺 Season ${seasonNum_int} • Episode ${episodeNum_int}\n`;
                                 overview += `🎭 ${episodeTitle}\n\n`;
                                 
+                                // Plot/Description with enhanced formatting
                                 if (episode.info?.plot || episode.plot) {
-                                    overview += `📖 ${episode.info?.plot || episode.plot}\n\n`;
+                                    const plot = episode.info?.plot || episode.plot;
+                                    overview += `📖 ${plot}\n\n`;
                                 }
+                                
+                                // Enhanced metadata section
+                                let metaSection = `📊 EPISODE DETAILS\n`;
                                 
                                 if (episode.info?.duration_secs) {
                                     const duration = Math.round(episode.info.duration_secs / 60);
-                                    overview += `⏱️ Duration: ${duration} minutes\n`;
+                                    const hours = Math.floor(duration / 60);
+                                    const mins = duration % 60;
+                                    const timeStr = hours > 0 ? `${hours}h ${mins}m` : `${mins} minutes`;
+                                    metaSection += `⏱️ Duration: ${timeStr}\n`;
                                 }
                                 
                                 if (episode.air_date || episode.releasedate) {
                                     const date = episode.air_date || episode.releasedate;
-                                    overview += `📅 Released: ${date}\n`;
+                                    const formattedDate = new Date(date).toLocaleDateString('en-US', {
+                                        year: 'numeric',
+                                        month: 'long',
+                                        day: 'numeric'
+                                    });
+                                    metaSection += `📅 Air Date: ${formattedDate}\n`;
                                 }
                                 
                                 if (episode.info?.rating && episode.info.rating !== "0.0") {
-                                    overview += `⭐ Rating: ${episode.info.rating}/10\n`;
+                                    const rating = parseFloat(episode.info.rating);
+                                    const stars = '⭐'.repeat(Math.round(rating / 2));
+                                    metaSection += `${stars} Rating: ${rating}/10\n`;
                                 }
                                 
-                                overview += `\n🚀 Powered by Taksos IPTV Addon`;
+                                // Additional episode info
+                                if (episode.info?.genre) {
+                                    metaSection += `🎭 Genre: ${episode.info.genre}\n`;
+                                }
+                                
+                                if (episode.info?.director) {
+                                    metaSection += `🎬 Director: ${episode.info.director}\n`;
+                                }
+                                
+                                if (episode.info?.cast || episode.info?.actors) {
+                                    const cast = episode.info?.cast || episode.info?.actors;
+                                    metaSection += `👥 Cast: ${cast}\n`;
+                                }
+                                
+                                overview += metaSection + `\n`;
+                                overview += `🚀 Streaming via Taksos IPTV Addon\n`;
+                                overview += `📡 Professional IPTV • Premium Quality`;
                                 
                                 videos.push({
                                     id: `${item.id}:${seasonNum}:${episode.episode_num}`,
