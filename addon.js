@@ -2,8 +2,8 @@ const { addonBuilder } = require('stremio-addon-sdk');
 const fetch = require('node-fetch');
 const crypto = require('crypto');
 
-const ADDON_ID = 'org.taksos.iptv.ultimate';
-const ADDON_NAME = '🎬 Taksos IPTV Addon';
+const ADDON_ID = 'org.stremio.iptv.selfhosted';
+const ADDON_NAME = 'IPTV Self-Hosted';
 
 // Simple in-memory cache to reduce IPTV server load
 const cache = new Map();
@@ -418,293 +418,27 @@ class IPTVAddon {
             items = items.filter(item => item.category === genre);
         }
 
-        // Filter by search with intelligent scoring
+        // Filter by search
         if (search) {
-            const searchLower = search.toLowerCase().trim();
-            const matchedItems = [];
-            
-            items.forEach(item => {
-                const itemName = item.name.toLowerCase();
-                const itemCategory = item.category.toLowerCase();
-                let matchScore = 0;
-                
-                // Exact name match (highest priority)
-                if (itemName === searchLower) {
-                    matchScore = 100;
-                } else if (itemName.includes(searchLower)) {
-                    // Partial name match
-                    matchScore = 80 + (searchLower.length / itemName.length) * 15;
-                } else if (itemCategory.includes(searchLower)) {
-                    matchScore = 60;
-                }
-                
-                // Enhanced transliteration matching for popular shows
-                if (matchScore === 0) {
-                    const transliterations = this.getTransliterations(searchLower);
-                    for (const trans of transliterations) {
-                        if (itemName.includes(trans)) {
-                            matchScore = Math.max(matchScore, 75);
-                        } else if (itemCategory.includes(trans)) {
-                            matchScore = Math.max(matchScore, 55);
-                        }
-                        
-                        // Word-by-word transliteration matching
-                        const transWords = trans.split(/\s+/);
-                        const nameWords = itemName.split(/\s+/);
-                        const categoryWords = itemCategory.split(/\s+/);
-                        
-                        const transMatches = transWords.filter(transWord => 
-                            nameWords.some(nameWord => nameWord.includes(transWord)) ||
-                            categoryWords.some(catWord => catWord.includes(transWord))
-                        );
-                        
-                        if (transMatches.length > 0) {
-                            const wordMatchScore = 40 + (transMatches.length / transWords.length) * 20;
-                            matchScore = Math.max(matchScore, wordMatchScore);
-                        }
-                    }
-                }
-                
-                // Word-by-word matching for partial searches
-                if (matchScore === 0) {
-                    const searchWords = searchLower.split(/\s+/);
-                    const nameWords = itemName.split(/\s+/);
-                    const categoryWords = itemCategory.split(/\s+/);
-                    
-                    const wordMatches = searchWords.filter(searchWord => 
-                        nameWords.some(nameWord => nameWord.includes(searchWord)) ||
-                        categoryWords.some(catWord => catWord.includes(searchWord))
-                    );
-                    
-                    if (wordMatches.length > 0) {
-                        matchScore = 30 + (wordMatches.length / searchWords.length) * 25;
-                    }
-                }
-                
-                // Add item with score if it matches
-                if (matchScore > 0) {
-                    matchedItems.push({ ...item, _matchScore: matchScore });
-                }
-            });
-            
-            // Sort by match score (highest first), then by name
-            items = matchedItems
-                .sort((a, b) => {
-                    if (b._matchScore !== a._matchScore) {
-                        return b._matchScore - a._matchScore;
-                    }
-                    return a.name.localeCompare(b.name);
-                })
-                .map(item => {
-                    delete item._matchScore;
-                    return item;
-                });
+            const searchLower = search.toLowerCase();
+            items = items.filter(item => 
+                item.name.toLowerCase().includes(searchLower) ||
+                item.category.toLowerCase().includes(searchLower)
+            );
         }
 
-        // If no search, sort by category then name
-        if (!search) {
-            items.sort((a, b) => {
-                if (a.category !== b.category) {
-                    return a.category.localeCompare(b.category);
-                }
-                return a.name.localeCompare(b.name);
-            });
-        }
+        // Sort by category then name
+        items.sort((a, b) => {
+            if (a.category !== b.category) {
+                return a.category.localeCompare(b.category);
+            }
+            return a.name.localeCompare(b.name);
+        });
 
         return items;
     }
 
-    getTransliterations(searchTerm) {
-        const results = [searchTerm];
-        const searchLower = searchTerm.toLowerCase().trim();
-        
-        // Auto-transliterate common English letters to Arabic equivalents
-        const letterMap = {
-            'a': ['ا', 'أ', 'إ', 'آ', 'ع'],
-            'b': ['ب'],
-            'c': ['ك', 'س'],
-            'd': ['د', 'ض'],
-            'e': ['ي', 'ع', 'ا'],
-            'f': ['ف'],
-            'g': ['ج', 'غ'],
-            'h': ['ه', 'ح', 'خ'],
-            'i': ['ي', 'ا'],
-            'j': ['ج'],
-            'k': ['ك', 'ق'],
-            'l': ['ل'],
-            'm': ['م'],
-            'n': ['ن'],
-            'o': ['و', 'ا'],
-            'p': ['ب'],
-            'q': ['ق', 'ك'],
-            'r': ['ر'],
-            's': ['س', 'ص', 'ش'],
-            't': ['ت', 'ط'],
-            'u': ['و', 'ا'],
-            'v': ['ف', 'ب'],
-            'w': ['و'],
-            'x': ['كس', 'إكس'],
-            'y': ['ي'],
-            'z': ['ز', 'ظ']
-        };
-        
-        // Generate Arabic variations by replacing English letters
-        let arabicVariations = [''];
-        for (const char of searchLower) {
-            if (letterMap[char]) {
-                const newVariations = [];
-                for (const variation of arabicVariations) {
-                    for (const arabicChar of letterMap[char]) {
-                        newVariations.push(variation + arabicChar);
-                    }
-                }
-                arabicVariations = newVariations.slice(0, 20); // Limit to prevent explosion
-            } else if (char === ' ') {
-                arabicVariations = arabicVariations.map(v => v + ' ');
-            } else {
-                arabicVariations = arabicVariations.map(v => v + char);
-            }
-        }
-        
-        results.push(...arabicVariations.filter(v => v.length > 1));
-        
-        // Common word replacements - Enhanced for popular shows
-        const commonWords = {
-            // Names
-            'omar': 'عمر',
-            'ahmed': 'أحمد',
-            'mohamed': 'محمد',
-            'ali': 'علي',
-            'hassan': 'حسن',
-            'fatima': 'فاطمة',
-            'aisha': 'عائشة',
-            
-            // Content types
-            'series': 'مسلسل',
-            'movie': 'فيلم',
-            'episode': 'حلقة',
-            'season': 'موسم',
-            'show': 'برنامج',
-            'drama': 'دراما',
-            'comedy': 'كوميديا',
-            
-            // Popular shows - Enhanced for Paranormal
-            'paranormal': 'ما وراء الطبيعة',
-            'ma wara2 el tabe3a': 'ما وراء الطبيعة',
-            'ma wara el tabe3a': 'ما وراء الطبيعة',
-            'wara2 el tabe3a': 'ما وراء الطبيعة',
-            'supernatural': 'ما وراء الطبيعة',
-            'بارانورمال': 'paranormal',
-            
-            // Other popular shows
-            'la casa de papel': 'بيت من ورق',
-            'money heist': 'بيت من ورق',
-            'casa de papel': 'بيت من ورق',
-            'breaking bad': 'بريكنغ باد',
-            'game of thrones': 'صراع العروش',
-            'prison break': 'هروب السجن'
-        };
-        
-        // Replace known words
-        let transliterated = searchLower;
-        Object.keys(commonWords).forEach(eng => {
-            if (transliterated.includes(eng)) {
-                results.push(transliterated.replace(eng, commonWords[eng]));
-                results.push(commonWords[eng]); // Also add just the Arabic word
-            }
-        });
-        
-        // Remove duplicates and empty strings
-        return [...new Set(results.filter(r => r && r.trim().length > 0))];
-    }
-
-    async getIMDBMetadata(title, type = 'movie', year = null) {
-        try {
-            // Clean title for better matching
-            const cleanTitle = title
-                .replace(/\d{4}.*$/, '') // Remove year and everything after
-                .replace(/[^\w\s]/g, ' ') // Remove special characters
-                .replace(/\s+/g, ' ') // Normalize spaces
-                .trim();
-
-            // Try multiple search variations
-            const searchTerms = [
-                cleanTitle,
-                ...this.getTransliterations(cleanTitle).slice(0, 3), // Top 3 transliterations
-                this.getAlternativeNames(title).join(' ') // Alternative names
-            ].filter(Boolean);
-
-            for (const searchTerm of searchTerms) {
-                try {
-                    // Use free OMDB API (you can get free key at omdbapi.com)
-                    const omdbKey = process.env.OMDB_API_KEY || 'demo'; // Add your key to .env
-                    const searchUrl = `https://www.omdbapi.com/?apikey=${omdbKey}&t=${encodeURIComponent(searchTerm)}&type=${type}&y=${year || ''}`;
-                    
-                    const response = await fetch(searchUrl, { timeout: 5000 });
-                    const data = await response.json();
-                    
-                    if (data.Response === 'True') {
-                        return {
-                            imdbID: data.imdbID,
-                            title: data.Title,
-                            year: data.Year,
-                            plot: data.Plot !== 'N/A' ? data.Plot : null,
-                            poster: data.Poster !== 'N/A' ? data.Poster : null,
-                            imdbRating: data.imdbRating !== 'N/A' ? data.imdbRating : null,
-                            genre: data.Genre !== 'N/A' ? data.Genre.split(', ') : [],
-                            director: data.Director !== 'N/A' ? data.Director : null,
-                            actors: data.Actors !== 'N/A' ? data.Actors : null,
-                            runtime: data.Runtime !== 'N/A' ? data.Runtime : null
-                        };
-                    }
-                } catch (e) {
-                    continue; // Try next search term
-                }
-            }
-        } catch (error) {
-            console.log(`[IMDB] Failed to fetch metadata for: ${title}`);
-        }
-        return null;
-    }
-
-    getAlternativeNames(itemName) {
-        // Reverse lookup - if we have Arabic name, show English equivalent
-        const reverseMap = {
-            'عمر أفندي': ['Omar Afandi'],
-            'عمر افندي': ['Omar Afandi'],
-            'أحمد': ['Ahmed'],
-            'احمد': ['Ahmed'],
-            'محمد': ['Mohamed', 'Muhammad'],
-            'علي': ['Ali'],
-            'على': ['Ali'],
-            'حسن': ['Hassan'],
-            'فاطمة': ['Fatima'],
-            'عائشة': ['Aisha'],
-            'مسلسل': ['Series'],
-            'فيلم': ['Movie']
-        };
-        
-        const alternatives = [];
-        
-        // Check for exact matches
-        if (reverseMap[itemName]) {
-            alternatives.push(...reverseMap[itemName]);
-        }
-        
-        // Check for partial matches
-        Object.keys(reverseMap).forEach(arabicName => {
-            if (itemName.includes(arabicName)) {
-                alternatives.push(...reverseMap[arabicName]);
-            }
-        });
-        
-        return [...new Set(alternatives)];
-    }
-
-    async generateMeta(item) {
-        console.log(`[META] Generating metadata for: ${item.name} (${item.type})`);
-        console.log(`[META] Item data:`, JSON.stringify(item, null, 2));
-        
+    generateMeta(item) {
         const meta = {
             id: item.id,
             type: item.type,
@@ -712,57 +446,13 @@ class IPTVAddon {
             genres: [item.category]
         };
 
-        // Try to get IMDB metadata for movies and series
-        let imdbData = null;
-        if (item.type !== 'tv') {
-            console.log(`[META] Fetching IMDB data for: ${item.name}`);
-            imdbData = await this.getIMDBMetadata(item.name, item.type === 'series' ? 'series' : 'movie', item.year);
-            if (imdbData) {
-                console.log(`[META] IMDB data found:`, JSON.stringify(imdbData, null, 2));
-            } else {
-                console.log(`[META] No IMDB data found for: ${item.name}`);
-            }
-        }
-
-        // Use IMDB data if available
-        if (imdbData) {
-            meta.name = imdbData.title || item.name;
-            meta.poster = imdbData.poster || item.poster;
-            meta.year = parseInt(imdbData.year) || item.year;
-            meta.imdbRating = imdbData.imdbRating;
-            meta.genres = imdbData.genre.length > 0 ? imdbData.genre : [item.category];
-            meta.director = imdbData.director;
-            meta.cast = imdbData.actors ? imdbData.actors.split(', ').slice(0, 4) : [];
-            meta.runtime = imdbData.runtime;
-            
-            // Enhanced description with IMDB data and Taksos branding
-            let description = '';
-            if (imdbData.imdbRating) description += `⭐ ${imdbData.imdbRating}/10 • `;
-            if (imdbData.runtime) description += `⏱️ ${imdbData.runtime} • `;
-            if (imdbData.director) description += `🎬 ${imdbData.director}\n\n`;
-            description += imdbData.plot || `${item.type === 'series' ? 'TV Show' : 'Movie'}: ${item.name}`;
-            description += `\n\n🚀 Streaming via Taksos IPTV Addon`;
-            description += `\n📡 High-quality IPTV streaming with IMDB integration`;
-            
-            meta.description = description;
+        if (item.type === 'tv') {
+            meta.poster = item.logo || `https://via.placeholder.com/300x400/333/fff?text=${encodeURIComponent(item.name)}`;
+            meta.description = `📺 Live Channel: ${item.name}`;
         } else {
-            // Fallback to original metadata
-            const altNames = this.getAlternativeNames(item.name);
-            if (altNames.length > 0) {
-                meta.description = `Also known as: ${altNames.join(', ')}\n\n`;
-            } else {
-                meta.description = '';
-            }
-
-            if (item.type === 'tv') {
-                meta.poster = item.logo || `https://via.placeholder.com/300x400/7043ff/ffffff?text=${encodeURIComponent(item.name)}`;
-                meta.description += `📺 Live Channel: ${item.name}\n\n🚀 Streaming via Taksos IPTV Addon\n📡 Professional IPTV experience with smart search`;
-            } else {
-                meta.poster = item.poster || `https://via.placeholder.com/300x450/7043ff/ffffff?text=${encodeURIComponent(item.name)}`;
-                meta.description += item.plot || `${item.type === 'series' ? '📺 TV Show' : '🎬 Movie'}: ${item.name}`;
-                meta.description += `\n\n🚀 Streaming via Taksos IPTV Addon\n📡 High-quality streaming with Arabic/English search`;
-                if (item.year) meta.year = item.year;
-            }
+            meta.poster = item.poster || `https://via.placeholder.com/300x450/666/fff?text=${encodeURIComponent(item.name)}`;
+            meta.description = item.plot || `${item.type === 'series' ? 'TV Show' : 'Movie'}: ${item.name}`;
+            if (item.year) meta.year = item.year;
         }
 
         // For series, we'll populate episodes in the meta handler
@@ -811,10 +501,7 @@ class IPTVAddon {
             return this.getEpisodeStream(seriesId, season, episode).then(url => ({
                 url: url,
                 title: `${series.name} - S${season}E${episode}`,
-                behaviorHints: { 
-                    notWebReady: true,
-                    bingeGroup: `iptv_series_${seriesId.replace('series_', '')}`
-                }
+                behaviorHints: { notWebReady: true }
             }));
         }
         
@@ -839,69 +526,17 @@ module.exports = async function createAddon(config = {}) {
 
     const manifest = {
         id: ADDON_ID,
-        version: "3.0.0",
+        version: "2.0.0",
         name: ADDON_NAME,
-        description: "🚀 Ultimate IPTV experience with IMDB integration, smart Arabic/English search & professional streaming quality by Taksos",
-        logo: "https://i.imgur.com/X8K9YzF.png",
-        background: "https://i.imgur.com/dQjTuXK.jpg",
+        description: "Self-hosted IPTV addon with caching to reduce server load",
+        logo: "https://via.placeholder.com/256x256/4CAF50/ffffff?text=IPTV",
         resources: ["catalog", "stream", "meta"],
         types: ["tv", "movie", "series"],
         catalogs: [
-            // Discovery Catalogs - What's Hot & Trending
-            {
-                type: 'movie',
-                id: 'taksos_trending_movies',
-                name: '🔥 Trending Movies',
-                extra: [
-                    { name: 'skip' }
-                ]
-            },
-            {
-                type: 'series',
-                id: 'taksos_trending_series',
-                name: '🔥 Trending Series',
-                extra: [
-                    { name: 'skip' }
-                ]
-            },
-            {
-                type: 'movie',
-                id: 'taksos_popular_movies',
-                name: '⭐ Popular Movies',
-                extra: [
-                    { name: 'skip' }
-                ]
-            },
-            {
-                type: 'series',
-                id: 'taksos_popular_series',
-                name: '⭐ Popular Series',
-                extra: [
-                    { name: 'skip' }
-                ]
-            },
-            {
-                type: 'movie',
-                id: 'taksos_recent_movies',
-                name: '🆕 Recently Added Movies',
-                extra: [
-                    { name: 'skip' }
-                ]
-            },
-            {
-                type: 'series',
-                id: 'taksos_recent_series',
-                name: '🆕 Recently Added Series',
-                extra: [
-                    { name: 'skip' }
-                ]
-            },
-            
-            // Browse by Category Catalogs
             {
                 type: 'tv',
-                id: 'taksos_live_tv',
-                name: '📺 Browse Live TV',
+                id: 'iptv_live',
+                name: 'IPTV',
                 extra: [
                     { name: 'genre', options: ['All Channels', ...addon.categories.live.slice(0, 20)] },
                     { name: 'search' },
@@ -910,8 +545,8 @@ module.exports = async function createAddon(config = {}) {
             },
             {
                 type: 'movie',
-                id: 'taksos_movies',
-                name: '🎬 Browse Movies',
+                id: 'iptv_movies',
+                name: 'Movies',
                 extra: [
                     { name: 'genre', options: ['All Movies', ...addon.categories.movies.slice(0, 15)] },
                     { name: 'search' },
@@ -920,10 +555,10 @@ module.exports = async function createAddon(config = {}) {
             },
             {
                 type: 'series',
-                id: 'taksos_series',
-                name: '📺 Browse Series',
+                id: 'iptv_series',
+                name: 'Series',
                 extra: [
-                    { name: 'genre', options: ['All Series', ...addon.categories.series.slice(0, 15)] },
+                    { name: 'genre', options: ['All Series', ...addon.categories.series.slice(0, 10)] },
                     { name: 'search' },
                     { name: 'skip' }
                 ]
@@ -940,151 +575,13 @@ module.exports = async function createAddon(config = {}) {
 
     builder.defineCatalogHandler(async (args) => {
         const { type, id, extra = {} } = args;
-        console.log(`[CATALOG] 🎬 Taksos IPTV Request: type=${type}, id=${id}, genre=${extra.genre}, search=${extra.search}`);
+        console.log(`[CATALOG] Request: type=${type}, id=${id}, genre=${extra.genre}, search=${extra.search}`);
         
-        let items = [];
-        let catalogName = '';
-        
-        // Handle different catalog types
-        if (id.includes('trending')) {
-            // Trending content - use realistic logic based on available data
-            items = addon.getCatalogItems(type, null, null);
-            console.log(`[TRENDING] Processing ${items.length} items for trending`);
-            
-            items = items.sort((a, b) => {
-                // Create trending score based on multiple factors
-                let scoreA = 0, scoreB = 0;
-                
-                // Factor 1: Name popularity (shorter names often more popular)
-                scoreA += Math.max(0, 20 - a.name.length);
-                scoreB += Math.max(0, 20 - b.name.length);
-                
-                // Factor 2: Category popularity
-                const trendingCategories = ['Action', 'Drama', 'Comedy', 'Horror', 'Thriller', 'Romance', 'Sci-Fi'];
-                if (trendingCategories.includes(a.category)) scoreA += 15;
-                if (trendingCategories.includes(b.category)) scoreB += 15;
-                
-                // Factor 3: Year (newer = more trending)
-                if (a.year) scoreA += Math.max(0, (a.year - 2000) / 2);
-                if (b.year) scoreB += Math.max(0, (b.year - 2000) / 2);
-                
-                // Factor 4: Has poster (more complete = more trending)
-                if (a.poster) scoreA += 5;
-                if (b.poster) scoreB += 5;
-                
-                console.log(`[TRENDING] ${a.name}: ${scoreA}, ${b.name}: ${scoreB}`);
-                return scoreB - scoreA;
-            });
-            catalogName = '🔥 Trending';
-        } else if (id.includes('popular')) {
-            // Popular content - based on category size and completeness
-            items = addon.getCatalogItems(type, null, null);
-            console.log(`[POPULAR] Processing ${items.length} items for popular`);
-            
-            // Count items per category to determine popularity
-            const categoryCount = {};
-            items.forEach(item => {
-                categoryCount[item.category] = (categoryCount[item.category] || 0) + 1;
-            });
-            
-            items = items.sort((a, b) => {
-                let scoreA = 0, scoreB = 0;
-                
-                // Factor 1: Category popularity (more items = more popular category)
-                scoreA += (categoryCount[a.category] || 0) * 2;
-                scoreB += (categoryCount[b.category] || 0) * 2;
-                
-                // Factor 2: Content completeness
-                if (a.poster) scoreA += 10;
-                if (b.poster) scoreB += 10;
-                if (a.plot) scoreA += 5;
-                if (b.plot) scoreB += 5;
-                if (a.year) scoreA += 3;
-                if (b.year) scoreB += 3;
-                
-                // Factor 3: Name recognition (common words)
-                const popularWords = ['the', 'and', 'of', 'in', 'to', 'a', 'is', 'it', 'you', 'that'];
-                const wordsA = a.name.toLowerCase().split(' ').filter(w => popularWords.includes(w)).length;
-                const wordsB = b.name.toLowerCase().split(' ').filter(w => popularWords.includes(w)).length;
-                scoreA += wordsA * 2;
-                scoreB += wordsB * 2;
-                
-                return scoreB - scoreA;
-            });
-            catalogName = '⭐ Popular';
-        } else if (id.includes('recent')) {
-            // Recently added - sort by year and name
-            items = addon.getCatalogItems(type, null, null);
-            console.log(`[RECENT] Processing ${items.length} items for recent`);
-            
-            items = items.sort((a, b) => {
-                // Sort by year first (newest first)
-                const yearA = a.year || 1900;
-                const yearB = b.year || 1900;
-                if (yearB !== yearA) return yearB - yearA;
-                
-                // Then by name alphabetically
-                return a.name.localeCompare(b.name);
-            });
-            catalogName = '🆕 Recently Added';
-        } else {
-            // Regular browsing and search
-            items = addon.getCatalogItems(type, extra.genre, extra.search);
-            catalogName = extra.search ? `🔍 Search "${extra.search}"` : `📂 Browse ${extra.genre || 'All'}`;
-        }
-        
+        const items = addon.getCatalogItems(type, extra.genre, extra.search);
         const skip = parseInt(extra.skip) || 0;
+        const metas = items.slice(skip, skip + 100).map(item => addon.generateMeta(item));
         
-        // For discovery catalogs, show fewer items but with IMDB enrichment
-        // For browsing/search, use existing logic
-        const isDiscovery = id.includes('trending') || id.includes('popular') || id.includes('recent');
-        const itemsPerPage = isDiscovery ? 30 : (extra.search ? 20 : 50);
-        const limitedItems = items.slice(skip, skip + itemsPerPage);
-        
-        // Generate metadata with appropriate enrichment
-        let metas;
-        if (extra.search || isDiscovery) {
-            // Full IMDB enrichment for search results and discovery catalogs
-            metas = await Promise.all(
-                limitedItems.map(item => addon.generateMeta(item))
-            );
-        } else {
-            // Faster metadata for regular browsing
-            metas = limitedItems.map(item => {
-                const meta = {
-                    id: item.id,
-                    type: item.type,
-                    name: item.name,
-                    genres: [item.category],
-                    poster: item.poster || item.logo || `https://via.placeholder.com/300x450/7043ff/ffffff?text=${encodeURIComponent(item.name)}`
-                };
-                
-                if (item.year) meta.year = item.year;
-                
-                // Enhanced descriptions with discovery context
-                if (item.type === 'tv') {
-                    meta.description = `📺 ${item.name}\n\n🚀 Live streaming via Taksos IPTV Addon\n📡 Professional IPTV experience`;
-                } else {
-                    let description = `${item.type === 'series' ? '📺' : '🎬'} ${item.name}`;
-                    if (item.plot) {
-                        description = item.plot;
-                    }
-                    
-                    // Add discovery badges
-                    if (id.includes('trending')) description += `\n\n🔥 TRENDING NOW`;
-                    else if (id.includes('popular')) description += `\n\n⭐ POPULAR CHOICE`;
-                    else if (id.includes('recent')) description += `\n\n🆕 RECENTLY ADDED`;
-                    
-                    description += `\n\n🚀 Streaming via Taksos IPTV Addon\n📡 Premium ${item.type} experience`;
-                    meta.description = description;
-                }
-                
-                return meta;
-            });
-        }
-        
-        console.log(`[CATALOG] 🎬 Taksos IPTV: Returning ${metas.length} items for ${catalogName}`);
-        
+        console.log(`[CATALOG] Returning ${metas.length} items for ${type}/${id}`);
         return { metas };
     });
 
@@ -1110,7 +607,7 @@ module.exports = async function createAddon(config = {}) {
         }
         
         console.log(`[META] Found item: ${item.name}, type: ${item.type}`);
-        const meta = await addon.generateMeta(item);
+        const meta = addon.generateMeta(item);
         
         // For series, fetch actual episodes from Xtream API
         if (item.type === 'series') {
@@ -1122,7 +619,7 @@ module.exports = async function createAddon(config = {}) {
                 const response = await fetch(episodeUrl, { timeout: 10000 });
                 const seriesInfo = await response.json();
                 
-                console.log(`[SERIES] Series info response for ${item.name}:`, JSON.stringify(seriesInfo, null, 2));
+                console.log(`[SERIES] Series info response:`, JSON.stringify(seriesInfo, null, 2));
                 
                 if (seriesInfo && seriesInfo.episodes) {
                     const videos = [];
@@ -1132,109 +629,15 @@ module.exports = async function createAddon(config = {}) {
                         const season = seriesInfo.episodes[seasonNum];
                         if (Array.isArray(season)) {
                             season.forEach(episode => {
-                                // Enhanced episode information with professional formatting
-                                const episodeTitle = episode.title || `Episode ${episode.episode_num}`;
-                                const seasonNum_int = parseInt(seasonNum);
-                                const episodeNum_int = parseInt(episode.episode_num);
-                                
-                                // Create rich but reliable episode overview
-                                let overview = `🎬 ${item.name}\n`;
-                                overview += `📺 Season ${seasonNum_int} • Episode ${episodeNum_int}\n`;
-                                overview += `🎭 ${episodeTitle}\n\n`;
-                                
-                                // Debug: Log what episode data we actually have
-                                console.log(`[EPISODE] Episode ${episodeNum_int} data:`, JSON.stringify(episode, null, 2));
-                                
-                                // Plot/Description
-                                const plot = episode.info?.plot || episode.plot || episode.info?.description || episode.description;
-                                if (plot && plot !== 'N/A' && plot.trim()) {
-                                    overview += `📖 ${plot}\n\n`;
-                                }
-                                
-                                // Episode details section
-                                let hasDetails = false;
-                                let detailsSection = `📊 EPISODE INFO\n`;
-                                
-                                // Duration
-                                const duration = episode.info?.duration_secs || episode.duration_secs || episode.info?.duration;
-                                if (duration && duration > 0) {
-                                    const mins = Math.round(duration / 60);
-                                    const hours = Math.floor(mins / 60);
-                                    const remainingMins = mins % 60;
-                                    const timeStr = hours > 0 ? `${hours}h ${remainingMins}m` : `${mins} minutes`;
-                                    detailsSection += `⏱️ Duration: ${timeStr}\n`;
-                                    hasDetails = true;
-                                }
-                                
-                                // Air date
-                                const airDate = episode.air_date || episode.releasedate || episode.info?.air_date || episode.info?.releasedate;
-                                if (airDate && airDate !== 'N/A') {
-                                    try {
-                                        const date = new Date(airDate);
-                                        if (!isNaN(date.getTime())) {
-                                            const formattedDate = date.toLocaleDateString('en-US', {
-                                                year: 'numeric',
-                                                month: 'long',
-                                                day: 'numeric'
-                                            });
-                                            detailsSection += `📅 Air Date: ${formattedDate}\n`;
-                                            hasDetails = true;
-                                        }
-                                    } catch (e) {
-                                        // Invalid date, skip
-                                    }
-                                }
-                                
-                                // Rating
-                                const rating = episode.info?.rating || episode.rating || episode.info?.imdb_rating;
-                                if (rating && rating !== "0.0" && rating !== "N/A") {
-                                    const ratingNum = parseFloat(rating);
-                                    if (!isNaN(ratingNum) && ratingNum > 0) {
-                                        const stars = '⭐'.repeat(Math.min(5, Math.round(ratingNum / 2)));
-                                        detailsSection += `${stars} Rating: ${ratingNum}/10\n`;
-                                        hasDetails = true;
-                                    }
-                                }
-                                
-                                // Genre
-                                const genre = episode.info?.genre || episode.genre;
-                                if (genre && genre !== 'N/A' && genre.trim()) {
-                                    detailsSection += `🎭 Genre: ${genre}\n`;
-                                    hasDetails = true;
-                                }
-                                
-                                // Director
-                                const director = episode.info?.director || episode.director;
-                                if (director && director !== 'N/A' && director.trim()) {
-                                    detailsSection += `🎬 Director: ${director}\n`;
-                                    hasDetails = true;
-                                }
-                                
-                                // Cast
-                                const cast = episode.info?.cast || episode.info?.actors || episode.cast || episode.actors;
-                                if (cast && cast !== 'N/A' && cast.trim()) {
-                                    detailsSection += `👥 Cast: ${cast}\n`;
-                                    hasDetails = true;
-                                }
-                                
-                                // Add details section if we have any details
-                                if (hasDetails) {
-                                    overview += detailsSection + `\n`;
-                                }
-                                
-                                overview += `🚀 Streaming via Taksos IPTV Addon\n`;
-                                overview += `📡 Professional IPTV • Premium Quality`;
-                                
                                 videos.push({
                                     id: `${item.id}:${seasonNum}:${episode.episode_num}`,
-                                    title: `S${seasonNum_int}E${episodeNum_int.toString().padStart(2, '0')} • ${episodeTitle}`,
-                                    season: seasonNum_int,
-                                    episode: episodeNum_int,
-                                    overview: overview,
-                                    thumbnail: episode.info?.movie_image || episode.info?.episode_image || item.poster,
-                                    released: episode.air_date || episode.releasedate,
-                                    duration: episode.info?.duration_secs,
-                                    rating: episode.info?.rating && episode.info.rating !== "0.0" ? parseFloat(episode.info.rating) : null
+                                    title: episode.title || `Episode ${episode.episode_num}`,
+                                    season: parseInt(seasonNum),
+                                    episode: parseInt(episode.episode_num),
+                                    overview: `Season ${seasonNum} Episode ${episode.episode_num}`,
+                                    thumbnail: episode.info?.movie_image,
+                                    released: episode.air_date,
+                                    duration: episode.info?.duration_secs
                                 });
                             });
                         }
@@ -1252,26 +655,24 @@ module.exports = async function createAddon(config = {}) {
                     console.log(`[SERIES] Sample episodes:`, meta.videos.slice(0, 3).map(v => `${v.title} (S${v.season}E${v.episode})`));
                 } else {
                     console.log(`[SERIES] No episodes found for series ${seriesId}`);
-                    // Add enhanced placeholder if no episodes found
+                    // Add placeholder if no episodes found
                     meta.videos = [{
                         id: `${item.id}:1:1`,
-                        title: "S01E01 • Episode 1",
+                        title: "Episode 1",
                         season: 1,
                         episode: 1,
-                        overview: `🎬 ${item.name}\n📺 Season 1 • Episode 1\n🎭 Episode 1\n\n📖 Episode information is currently being loaded...\n\n🚀 Powered by Taksos IPTV Addon`,
-                        thumbnail: item.poster
+                        overview: "Episode information not available"
                     }];
                 }
             } catch (error) {
                 console.error(`[SERIES] Error fetching episodes for ${item.name}:`, error.message);
-                // Add enhanced placeholder on error
+                // Add placeholder on error
                 meta.videos = [{
                     id: `${item.id}:1:1`,
-                    title: "S01E01 • Episode 1",
+                    title: "Episode 1",
                     season: 1,
                     episode: 1,
-                    overview: `🎬 ${item.name}\n📺 Season 1 • Episode 1\n🎭 Episode 1\n\n⚠️ Unable to load episode information at this time.\nPlease try again later.\n\n🚀 Powered by Taksos IPTV Addon`,
-                    thumbnail: item.poster
+                    overview: "Unable to load episode information"
                 }];
             }
         }
