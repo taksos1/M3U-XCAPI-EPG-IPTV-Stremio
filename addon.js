@@ -246,31 +246,10 @@ class IPTVAddon {
                 this.extractCategoriesFromContent();
             }
 
-            // Helper to merge and clean category arrays
-            const mergeCategories = (itemCats, mapCats) => {
-                const merged = new Set();
-                // Add categories detected from items (channels/movies/series)
-                itemCats.forEach(c => {
-                    if (typeof c === 'string') {
-                        const cleaned = c.trim();
-                        if (cleaned) merged.add(cleaned);
-                    }
-                });
-                // Add categories coming from the provider's category maps
-                Object.values(mapCats || {}).forEach(c => {
-                    if (typeof c === 'string') {
-                        const cleaned = c.trim();
-                        if (cleaned) merged.add(cleaned);
-                    }
-                });
-                // Return sorted array (case-insensitive)
-                return Array.from(merged).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
-            };
-
-            // Build category lists – now merging map-derived categories too
-            this.categories.live = mergeCategories(this.channels.map(c => c.category), liveCatMap);
-            this.categories.movies = mergeCategories(this.movies.map(m => m.category), vodCatMap);
-            this.categories.series = mergeCategories(this.series.map(s => s.category), seriesCatMap);
+            // Build category lists
+            this.categories.live = [...new Set(this.channels.map(c => c.category))].filter(Boolean).sort();
+            this.categories.movies = [...new Set(this.movies.map(m => m.category))].filter(Boolean).sort();
+            this.categories.series = [...new Set(this.series.map(s => s.category))].filter(Boolean).sort();
 
             console.log(`[IPTV] Loaded: ${this.channels.length} channels, ${this.movies.length} movies, ${this.series.length} series`);
             console.log(`[IPTV] Live categories (${this.categories.live.length}):`, this.categories.live.slice(0, 10));
