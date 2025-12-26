@@ -1,263 +1,77 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <title>🎬 Ultimate IPTV Addon for Stremio</title>
-        <meta name="viewport" content="width=device-width,initial-scale=1" />
-        <meta name="color-scheme" content="dark light" />
-        <meta
-            name="description"
-            content="Enhanced IPTV addon that integrates directly with Stremio's main search - no separate categories needed!"
-        />
-        <link rel="stylesheet" href="/css/styles.css" />
-        <link
-            rel="icon"
-            href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎬</text></svg>"
-        />
-    </head>
 
-    <body class="page-root">
-        <header class="site-header">
-            <div class="inner">
-                <h1 class="app-title">🎬 Enhanced IPTV Addon</h1>
-                <p class="subtitle">
-                    Seamlessly integrates IPTV content into Stremio's main
-                    search - search "Midterm" and find Arabic episodes!
+<head>
+    <meta charset="UTF-8">
+    <title>M3U/EPG Addon Configuration</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="color-scheme" content="dark light">
+    <link rel="stylesheet" href="/css/styles.css">
+</head>
+
+<body class="page-root">
+    <header class="site-header">
+        <div class="inner">
+            <h1 class="app-title">M3U/EPG Addon Configuration V2.0.0</h1>
+            <p class="subtitle">Choose how you would like to set up your M3U/EPG Addon.</p>
+        </div>
+    </header>
+
+    <main class="main-content">
+        <section class="card-grid">
+            <article class="option-card">
+                <h2>Direct M3U / EPG</h2>
+                <p>Provide a direct playlist URL and optional XMLTV guide.</p>
+                <a class="btn primary" href="/html/direct-config.html">Configure Direct</a>
+            </article>
+            <article class="option-card">
+                <h2>Xtream Codes API</h2>
+                <p>Use Xtream panel credentials or m3u_plus output with optional custom EPG.</p>
+                <a class="btn primary" href="/html/xtream-config.html">Configure Xtream</a>
+            </article>
+            <article class="option-card">
+                <h2>Support Development</h2>
+                <p>If this addon helps you, consider buying me a coffee to support continued development and hosting.
                 </p>
-                <div class="feature-badges">
-                    <span class="badge">🔍 Main Search Integration</span>
-                    <span class="badge">🌍 Arabic/English Matching</span>
-                    <span class="badge">⭐ IMDB Metadata</span>
-                    <span class="badge">🎯 Zero Configuration</span>
+                <div class="donate-wrapper">
+                    <!-- BuyMeACoffee Button -->
+                    <script type="text/javascript" src="https://cdnjs.buymeacoffee.com/1.0.0/button.prod.min.js"
+                        data-name="bmc-button" data-slug="K3QSoR2" data-color="#BD5FFF" data-emoji="☕"
+                        data-font="Cookie" data-text="Buy me a coffee" data-outline-color="#000000"
+                        data-font-color="#ffffff" data-coffee-color="#FFDD00">
+                        </script>
                 </div>
-            </div>
-        </header>
+            </article>
+        </section>
 
-        <main class="main-content">
-            <section class="setup-section">
-                <h2>🚀 Revolutionary Integration</h2>
-                <p class="setup-intro">
-                    This addon appears in Stremio's main search - no separate
-                    addon sections! Search for "Midterm" and instantly see both
-                    Stremio content AND your IPTV episodes together.
-                </p>
+        <section class="info-panel">
+            <h3>About the Addon</h3>
+            <p>This addon integrates IPTV playlists and TV guides into Stremio. Your configuration is encoded into a
+                token so you can reinstall or share securely.</p>
+            <ul class="feature-list">
+                <li>M3U + XMLTV (Direct)</li>
+                <li>Xtream Codes JSON / m3u_plus</li>
+                <li>Optional custom EPG + offset</li>
+                <li>Channel, Movie & Series catalogs</li>
+                <li>Local + Redis caching support</li>
+            </ul>
+            <br>
+            <h3>Credits</h3>
+            <ul class="feature-list">
+                <li>Made with ❤️ by Inside4ndroid</li>
+                <li>Hosted by skyecraft92</li>
+                <li>Icon by <a href="https://www.flaticon.com/free-icons/tv" target="_blank" rel="noopener">Freepik -
+                        Flaticon</a></li>
+                <li>BuyMeACoffee button by <a href="https://www.buymeacoffee.com/" target="_blank"
+                        rel="noopener">BuyMeACoffee</a></li>
+        </section>
+    </main>
 
-                <div class="card-grid">
-                    <article class="option-card enhanced">
-                        <div class="card-icon">📡</div>
-                        <h3>Direct M3U Playlist</h3>
-                        <p>
-                            M3U playlists that appear in main Stremio search
-                            automatically.
-                        </p>
-                        <ul class="feature-list mini">
-                            <li>✅ Main search integration</li>
-                            <li>✅ Auto series detection</li>
-                            <li>✅ Smart Arabic/English matching</li>
-                        </ul>
-                        <a class="btn primary" href="/html/direct-config.html"
-                            >Configure M3U</a
-                        >
-                    </article>
+    <footer class="site-footer">
+        <div class="inner">
+            <p>M3U/EPG Addon • &copy; 2025 • Made with ❤️ by Inside4ndroid</p>
+        </div>
+    </footer>
+</body>
 
-                    <article class="option-card enhanced">
-                        <div class="card-icon">🔗</div>
-                        <h3>Xtream Codes API</h3>
-                        <p>
-                            Complete Xtream integration appearing in main
-                            Stremio search.
-                        </p>
-                        <ul class="feature-list mini">
-                            <li>✅ Seamless search integration</li>
-                            <li>✅ Full episode support</li>
-                            <li>✅ Intelligent content matching</li>
-                        </ul>
-                        <a class="btn primary" href="/html/xtream-config.html"
-                            >Configure Xtream</a
-                        >
-                    </article>
-                </div>
-            </section>
-
-            <section class="features-section">
-                <h2>✨ Revolutionary Features</h2>
-                <div class="features-grid">
-                    <div class="feature-item">
-                        <div class="feature-icon">🔍</div>
-                        <h4>Main Search Integration</h4>
-                        <p>
-                            Search "Midterm" in Stremio and see Arabic IPTV
-                            episodes alongside regular content!
-                        </p>
-                    </div>
-                    <div class="feature-item">
-                        <div class="feature-icon">🌍</div>
-                        <h4>Smart Transliteration</h4>
-                        <p>
-                            Automatically matches "Midterm" with "ميد ترم" and
-                            "منتصف الفصل" - works both ways!
-                        </p>
-                    </div>
-                    <div class="feature-item">
-                        <div class="feature-icon">🎭</div>
-                        <h4>Enhanced Metadata</h4>
-                        <p>
-                            IMDB integration provides rich descriptions,
-                            ratings, and posters for all content.
-                        </p>
-                    </div>
-                    <div class="feature-item">
-                        <div class="feature-icon">⚡</div>
-                        <h4>Zero Configuration</h4>
-                        <p>
-                            No catalogs to browse - everything works through
-                            Stremio's native search interface.
-                        </p>
-                    </div>
-                </div>
-            </section>
-
-            <section class="info-panel">
-                <h3>🎯 How It Works</h3>
-                <div class="tech-features">
-                    <div class="tech-column">
-                        <h4>Search Integration</h4>
-                        <ul class="feature-list">
-                            <li>🔍 Appears in main Stremio search</li>
-                            <li>🌍 Arabic ↔ English matching</li>
-                            <li>📺 Series episodes included</li>
-                            <li>🎬 Movies with IMDB data</li>
-                        </ul>
-                    </div>
-                    <div class="tech-column">
-                        <h4>Smart Features</h4>
-                        <ul class="feature-list">
-                            <li>🧠 Intelligent name matching</li>
-                            <li>⚡ Real-time transliteration</li>
-                            <li>📊 Content scoring algorithm</li>
-                            <li>🔄 Automatic metadata sync</li>
-                        </ul>
-                    </div>
-                </div>
-                <div
-                    style="
-                        margin-top: 20px;
-                        padding: 16px;
-                        background: rgba(112, 67, 255, 0.1);
-                        border-radius: 8px;
-                        text-align: center;
-                    "
-                >
-                    <strong>🎉 Example:</strong> Search for "Midterm" in Stremio
-                    → instantly see Arabic episodes like "ميد ترم" and "منتصف
-                    الفصل" mixed with regular content!
-                </div>
-            </section>
-        </main>
-
-        <footer class="site-footer">
-            <div class="inner">
-                <p>
-                    🎬 Enhanced IPTV Addon • Seamless main search integration
-                    for Stremio
-                </p>
-                <p class="footer-note">
-                    Get your free OMDB API key at
-                    <a href="https://omdbapi.com" target="_blank"
-                        >omdbapi.com</a
-                    >
-                    for enhanced IMDB metadata
-                </p>
-            </div>
-        </footer>
-
-        <style>
-            .feature-badges {
-                display: flex;
-                gap: 8px;
-                flex-wrap: wrap;
-                justify-content: center;
-                margin-top: 16px;
-            }
-            .badge {
-                background: linear-gradient(135deg, #7043ff, #c58cff);
-                color: white;
-                padding: 4px 12px;
-                border-radius: 20px;
-                font-size: 12px;
-                font-weight: 600;
-            }
-            .setup-section {
-                margin-bottom: 40px;
-            }
-            .setup-intro {
-                text-align: center;
-                margin-bottom: 30px;
-                font-size: 16px;
-                opacity: 0.9;
-            }
-            .option-card.enhanced {
-                position: relative;
-                padding: 24px;
-                border: 2px solid rgba(112, 67, 255, 0.2);
-            }
-            .card-icon {
-                font-size: 48px;
-                text-align: center;
-                margin-bottom: 16px;
-            }
-            .option-card h3 {
-                margin: 0 0 12px 0;
-                font-size: 20px;
-            }
-            .feature-list.mini {
-                font-size: 14px;
-                margin: 16px 0;
-            }
-            .feature-list.mini li {
-                margin: 4px 0;
-            }
-            .features-section {
-                margin: 40px 0;
-            }
-            .features-grid {
-                display: grid;
-                grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-                gap: 24px;
-                margin-top: 24px;
-            }
-            .feature-item {
-                text-align: center;
-                padding: 20px;
-                background: rgba(255, 255, 255, 0.05);
-                border-radius: 12px;
-            }
-            .feature-icon {
-                font-size: 36px;
-                margin-bottom: 12px;
-            }
-            .feature-item h4 {
-                margin: 0 0 8px 0;
-                color: #c58cff;
-            }
-            .tech-features {
-                display: grid;
-                grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-                gap: 24px;
-                margin-top: 20px;
-            }
-            .tech-column h4 {
-                color: #7043ff;
-                margin-bottom: 12px;
-            }
-            .footer-note {
-                font-size: 12px;
-                opacity: 0.7;
-                margin-top: 8px;
-            }
-            .footer-note a {
-                color: #c58cff;
-            }
-        </style>
-    </body>
 </html>
