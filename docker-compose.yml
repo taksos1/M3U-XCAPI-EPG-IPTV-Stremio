@@ -1,0 +1,21 @@
+version: '3.8'
+services:
+  stremio_addon:
+    image: inside4ndroid/stremio-m3u-epg-addon:latest  # Changed from build: .
+    container_name: stremio_addon
+    ports:
+      - "7000:7000"
+    env_file:
+      - .env
+    restart: unless-stopped
+    # Uncomment below if you want to use Redis
+    # depends_on:
+    #   - redis
+
+  # Optional Redis service
+  # redis:
+  #   image: redis:7-alpine
+  #   container_name: redis
+  #   ports:
+  #     - "6379:6379"
+  #   restart: unless-stopped

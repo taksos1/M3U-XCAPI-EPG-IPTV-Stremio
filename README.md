@@ -1,56 +1,21 @@
-# 🎬 Ultimate IPTV Addon for Stremio
+# ☄️ Stremio IPTV Addon (Direct M3U • Xtream Codes • XMLTV EPG • Series Support)
 
-> **The most advanced IPTV addon for Stremio** featuring IMDB integration, intelligent Arabic/English search, and seamless content discovery.
-
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/your-username/ultimate-iptv-stremio-addon)
-
-## ✨ What Makes This Special
-
-### 🎭 **IMDB Integration**
-- **Automatic metadata enrichment** with ratings, cast, posters, and plot summaries
-- **High-quality posters** from OMDB API
-- **Rich descriptions** with director, runtime, and IMDB ratings
-- **Genre mapping** from IMDB data
-
-### 🔍 **Smart Arabic/English Search**
-- **Intelligent transliteration**: Search "Omar Afandi" → finds "عمر أفندي"
-- **Automatic letter mapping**: English letters to Arabic equivalents
-- **Bidirectional search**: Works both ways (Arabic ↔ English)
-- **Word-by-word matching** for flexible searches
-
-### 🎯 **Seamless Integration**
-- **No separate addon sections** - content appears in main Stremio search
-- **Search-triggered discovery** - only shows when relevant
-- **Native Stremio experience** - looks like built-in content
-
-### ⚡ **Vercel Optimized**
-- **Serverless deployment** with intelligent caching
-- **Fast cold starts** and efficient API usage
-- **Automatic scaling** and global CDN distribution
-
-### 📺 **Complete IPTV Support**
-- **Direct M3U playlists** with automatic series detection
-- **Xtream Codes API** (JSON + m3u_plus modes)
-- **XMLTV EPG integration** with custom offset support
-- **Series episodes** with binge-watching support
-- **Live TV channels** with logo proxy
+> A self‑hostable, token‑based, privacy‑friendly IPTV addon for **Stremio** supporting:
+> - Direct M3U playlists (TV + Movie + heuristic Series detection)
+> - Xtream Codes API (JSON mode + m3u_plus mode)
+> - Panel XMLTV or custom EPG feeds
+> - Channel Logos, Live Now info, Upcoming programme snippets
+> - Movies & VOD catalog
+> - Series catalog (Xtream native + M3U heuristic grouping)
+> - Client pre‑flight validation with CORS bypass fallback
+> - Config token encoding (+ optional encryption)
+> - Local LRU + Redis caching
+> - Lightweight logo proxy & EPG parsing
+> - Graceful degradation (EPG failures do not block usage)
 
 ---
 
-## 🚀 Quick Deploy to Vercel
-
-1. **Click the deploy button above** or fork this repository
-2. **Connect to Vercel** and deploy instantly
-3. **Add environment variables** (optional):
-   ```
-   OMDB_API_KEY=your_free_key_from_omdbapi.com
-   CONFIG_SECRET=your_long_random_string_for_encryption
-   DEBUG_MODE=false
-   ```
-4. **Visit your deployment URL** and configure your IPTV source
-5. **Add to Stremio** using the generated manifest URL
-
-## 🎬 How Users Install
+## 🎬 Demo Flow (How Users Install)
 
 1. Visit your hosted base URL (`https://your-host/`)
 2. Pick a mode:
