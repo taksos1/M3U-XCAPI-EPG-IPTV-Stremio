@@ -538,7 +538,7 @@ module.exports = async function createAddon(config = {}) {
                 id: 'iptv_live',
                 name: 'IPTV',
                 extra: [
-                    { name: 'genre', options: ['All Channels', ...addon.categories.live.slice(0, 20)] },
+                    { name: 'genre', options: ['All Channels', ...addon.categories.live] },
                     { name: 'search' },
                     { name: 'skip' }
                 ]
@@ -548,7 +548,7 @@ module.exports = async function createAddon(config = {}) {
                 id: 'iptv_movies',
                 name: 'Movies',
                 extra: [
-                    { name: 'genre', options: ['All Movies', ...addon.categories.movies.slice(0, 15)] },
+                    { name: 'genre', options: ['All Movies', ...addon.categories.movies] },
                     { name: 'search' },
                     { name: 'skip' }
                 ]
@@ -558,7 +558,7 @@ module.exports = async function createAddon(config = {}) {
                 id: 'iptv_series',
                 name: 'Series',
                 extra: [
-                    { name: 'genre', options: ['All Series', ...addon.categories.series.slice(0, 10)] },
+                    { name: 'genre', options: ['All Series', ...addon.categories.series] },
                     { name: 'search' },
                     { name: 'skip' }
                 ]
