@@ -198,7 +198,7 @@ class IPTVAddon {
             if (Array.isArray(vodData)) {
                 this.movies = vodData.map(item => {
                     const category = vodCatMap[item.category_id] || item.category || item.group_title || 'Movies';
-
+                    
                     return {
                         id: `vod_${item.stream_id}`,
                         name: item.name,
@@ -207,16 +207,7 @@ class IPTVAddon {
                         poster: item.stream_icon,
                         category: category,
                         plot: item.plot || item.description,
-                        year: item.releasedate ? new Date(item.releasedate).getFullYear() : null,
-                        rating: item.rating,
-                        genre: item.genre,
-                        cast: item.cast,
-                        director: item.director,
-                        country: item.country,
-                        duration: item.duration_secs,
-                        imdb_id: item.imdb_id,
-                        tmdb_id: item.tmdb_id,
-                        language: item.language
+                        year: item.releasedate ? new Date(item.releasedate).getFullYear() : null
                     };
                 });
             }
@@ -225,7 +216,7 @@ class IPTVAddon {
             if (Array.isArray(seriesData)) {
                 this.series = seriesData.map(item => {
                     const category = seriesCatMap[item.category_id] || item.category || item.group_title || 'Series';
-
+                    
                     return {
                         id: `series_${item.series_id}`,
                         name: item.name,
@@ -236,14 +227,7 @@ class IPTVAddon {
                         plot: item.plot || item.description,
                         year: item.releaseDate ? new Date(item.releaseDate).getFullYear() : null,
                         rating: item.rating,
-                        genre: item.genre,
-                        cast: item.cast,
-                        director: item.director,
-                        country: item.country,
-                        duration: item.duration_secs,
-                        imdb_id: item.imdb_id,
-                        tmdb_id: item.tmdb_id,
-                        language: item.language
+                        genre: item.genre
                     };
                 });
                 
@@ -459,7 +443,7 @@ class IPTVAddon {
             id: item.id,
             type: item.type,
             name: item.name,
-            genres: item.genre ? (Array.isArray(item.genre) ? item.genre : [item.genre].filter(Boolean)) : [item.category]
+            genres: [item.category]
         };
 
         if (item.type === 'tv') {
@@ -469,16 +453,6 @@ class IPTVAddon {
             meta.poster = item.poster || `https://via.placeholder.com/300x450/666/fff?text=${encodeURIComponent(item.name)}`;
             meta.description = item.plot || `${item.type === 'series' ? 'TV Show' : 'Movie'}: ${item.name}`;
             if (item.year) meta.year = item.year;
-
-            // Add additional metadata fields
-            if (item.rating) meta.rating = item.rating;
-            if (item.cast && Array.isArray(item.cast)) meta.cast = item.cast;
-            if (item.director) meta.director = item.director;
-            if (item.country) meta.country = item.country;
-            if (item.duration) meta.runtime = item.duration;
-            if (item.imdb_id) meta.imdb_id = item.imdb_id;
-            if (item.tmdb_id) meta.tmdb_id = item.tmdb_id;
-            if (item.language) meta.language = item.language;
         }
 
         // For series, we'll populate episodes in the meta handler
@@ -649,7 +623,7 @@ module.exports = async function createAddon(config = {}) {
                 
                 if (seriesInfo && seriesInfo.episodes) {
                     const videos = [];
-
+                    
                     // Process all seasons and episodes
                     Object.keys(seriesInfo.episodes).forEach(seasonNum => {
                         const season = seriesInfo.episodes[seasonNum];
@@ -660,11 +634,10 @@ module.exports = async function createAddon(config = {}) {
                                     title: episode.title || `Episode ${episode.episode_num}`,
                                     season: parseInt(seasonNum),
                                     episode: parseInt(episode.episode_num),
-                                    overview: episode.plot || episode.overview || `Season ${seasonNum} Episode ${episode.episode_num}`,
-                                    thumbnail: episode.info?.movie_image || episode.info?.cover_big || episode.info?.episode_image,
-                                    released: episode.air_date || episode.releasedate,
-                                    duration: episode.info?.duration_secs || episode.duration_secs,
-                                    rating: episode.rating
+                                    overview: `Season ${seasonNum} Episode ${episode.episode_num}`,
+                                    thumbnail: episode.info?.movie_image,
+                                    released: episode.air_date,
+                                    duration: episode.info?.duration_secs
                                 });
                             });
                         }
