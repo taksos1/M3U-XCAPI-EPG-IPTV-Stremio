@@ -183,10 +183,21 @@ async function fetchData(addonInstance) {
                 plot: s.plot,
                 year: s.releasedate ? new Date(s.releasedate).getFullYear() : null,
                 category: cat,
+                rating: s.rating,
+                genre: s.genre,
+                cast: s.cast,
+                director: s.director,
+                country: s.country,
+                duration: s.duration_secs,
+                imdb_id: s.imdb_id,
+                tmdb_id: s.tmdb_id,
+                language: s.language,
                 attributes: {
                     'tvg-logo': s.stream_icon,
                     'group-title': cat,
-                    'plot': s.plot
+                    'plot': s.plot,
+                    'rating': s.rating,
+                    'genre': s.genre
                 }
             };
         });
@@ -226,10 +237,22 @@ async function fetchData(addonInstance) {
                                 poster: s.cover,
                                 plot: s.plot,
                                 category: cat,
+                                rating: s.rating,
+                                genre: s.genre,
+                                cast: s.cast,
+                                director: s.director,
+                                country: s.country,
+                                duration: s.duration_secs,
+                                imdb_id: s.imdb_id,
+                                tmdb_id: s.tmdb_id,
+                                language: s.language,
+                                year: s.releaseDate ? new Date(s.releaseDate).getFullYear() : null,
                                 attributes: {
                                     'tvg-logo': s.cover,
                                     'group-title': cat,
-                                    'plot': s.plot
+                                    'plot': s.plot,
+                                    'rating': s.rating,
+                                    'genre': s.genre
                                 }
                             };
                         });
