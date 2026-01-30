@@ -5,9 +5,16 @@ const crypto = require('crypto');
 const ADDON_ID = 'org.stremio.iptv.selfhosted';
 const ADDON_NAME = 'IPTV Self-Hosted';
 
+// TMDB API Configuration
+const TMDB_API_KEY = '39c92ba4f28e6dbf665df5b7e9174d21';
+const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
+
 // Simple in-memory cache to reduce IPTV server load
 const cache = new Map();
 const CACHE_TTL = 30 * 60 * 1000; // 30 minutes
+
+// Debug logging flag
+const DEBUG = false;
 
 class IPTVAddon {
     constructor(config) {
@@ -119,16 +126,20 @@ class IPTVAddon {
             const seriesCats = await seriesCatResp.json();
             console.log('[IPTV] Series categories response:', seriesCats);
 
-            // Build category maps - handle different response formats
+            // Build category maps - preserve API order
             const liveCatMap = {};
             const vodCatMap = {};
             const seriesCatMap = {};
+            const liveCatOrder = [];
+            const vodCatOrder = [];
+            const seriesCatOrder = [];
             
             // Handle array format
             if (Array.isArray(liveCats)) {
                 liveCats.forEach(cat => {
                     if (cat.category_id && cat.category_name) {
                         liveCatMap[cat.category_id] = cat.category_name;
+                        liveCatOrder.push(cat.category_name);
                     }
                 });
             }
@@ -138,6 +149,7 @@ class IPTVAddon {
                     const cat = liveCats[key];
                     if (cat.category_name || cat.name) {
                         liveCatMap[key] = cat.category_name || cat.name;
+                        liveCatOrder.push(cat.category_name || cat.name);
                     }
                 });
             }
@@ -146,6 +158,7 @@ class IPTVAddon {
                 vodCats.forEach(cat => {
                     if (cat.category_id && cat.category_name) {
                         vodCatMap[cat.category_id] = cat.category_name;
+                        vodCatOrder.push(cat.category_name);
                     }
                 });
             }
@@ -154,6 +167,7 @@ class IPTVAddon {
                     const cat = vodCats[key];
                     if (cat.category_name || cat.name) {
                         vodCatMap[key] = cat.category_name || cat.name;
+                        vodCatOrder.push(cat.category_name || cat.name);
                     }
                 });
             }
@@ -163,6 +177,7 @@ class IPTVAddon {
                 seriesCats.forEach(cat => {
                     if (cat.category_id && cat.category_name) {
                         seriesCatMap[cat.category_id] = cat.category_name;
+                        seriesCatOrder.push(cat.category_name);
                     }
                 });
             }
@@ -171,6 +186,7 @@ class IPTVAddon {
                     const cat = seriesCats[key];
                     if (cat.category_name || cat.name) {
                         seriesCatMap[key] = cat.category_name || cat.name;
+                        seriesCatOrder.push(cat.category_name || cat.name);
                     }
                 });
             }
@@ -206,8 +222,8 @@ class IPTVAddon {
                         url: `${xtreamUrl}/movie/${xtreamUsername}/${xtreamPassword}/${item.stream_id}.${item.container_extension || 'mp4'}`,
                         poster: item.stream_icon,
                         category: category,
-                        plot: item.plot || item.description,
-                        year: item.releasedate ? new Date(item.releasedate).getFullYear() : null
+                        rating: item.rating || item.rating_5based,
+                        imdbId: item.imdb_id || item.imdb || item.tmdb_id || item.tmdb
                     };
                 });
             }
@@ -224,10 +240,8 @@ class IPTVAddon {
                         url: `${xtreamUrl}/series/${xtreamUsername}/${xtreamPassword}/${item.series_id}`,
                         poster: item.cover,
                         category: category,
-                        plot: item.plot || item.description,
-                        year: item.releaseDate ? new Date(item.releaseDate).getFullYear() : null,
                         rating: item.rating,
-                        genre: item.genre
+                        imdbId: item.imdb_id || item.imdb || item.tmdb_id || item.tmdb
                     };
                 });
                 
@@ -246,15 +260,23 @@ class IPTVAddon {
                 this.extractCategoriesFromContent();
             }
 
-            // Build category lists
-            this.categories.live = [...new Set(this.channels.map(c => c.category))].filter(Boolean).sort();
-            this.categories.movies = [...new Set(this.movies.map(m => m.category))].filter(Boolean).sort();
-            this.categories.series = [...new Set(this.series.map(s => s.category))].filter(Boolean).sort();
+            // Build category lists - use API order to match IPTV server
+            this.categories.live = liveCatOrder;
+            this.categories.movies = vodCatOrder;
+            this.categories.series = seriesCatOrder;
 
             console.log(`[IPTV] Loaded: ${this.channels.length} channels, ${this.movies.length} movies, ${this.series.length} series`);
             console.log(`[IPTV] Live categories (${this.categories.live.length}):`, this.categories.live.slice(0, 10));
             console.log(`[IPTV] Movie categories (${this.categories.movies.length}):`, this.categories.movies.slice(0, 10));
             console.log(`[IPTV] Series categories (${this.categories.series.length}):`, this.categories.series.slice(0, 10));
+            
+            // Log sample items to check order
+            if (this.movies.length > 0) {
+                console.log('[IPTV] Sample movies (first 5):', this.movies.slice(0, 5).map(m => `${m.name} (${m.category})`));
+            }
+            if (this.series.length > 0) {
+                console.log('[IPTV] Sample series (first 5):', this.series.slice(0, 5).map(s => `${s.name} (${s.category})`));
+            }
 
             // Cache the data to reduce future server load
             this.setCachedData(cacheKey, {
@@ -420,22 +442,290 @@ class IPTVAddon {
 
         // Filter by search
         if (search) {
+            if (DEBUG) console.log(`[SEARCH] Searching for "${search}" in ${items.length} items`);
+            
+            // Check if search is an IMDb ID
+            const isImdbId = search.startsWith('tt') && search.length > 2;
+            
+            if (isImdbId) {
+                // Search by IMDb ID
+                const imdbResult = items.find(item => item.imdbId === search);
+                if (imdbResult) {
+                    if (DEBUG) console.log(`[SEARCH] Found item by IMDb ID: ${imdbResult.name}`);
+                    return [imdbResult];
+                }
+                return [];
+            }
+            
+            // Fuzzy search with better matching
             const searchLower = search.toLowerCase();
-            items = items.filter(item => 
-                item.name.toLowerCase().includes(searchLower) ||
-                item.category.toLowerCase().includes(searchLower)
-            );
+            const searchResults = [];
+            
+            for (const item of items) {
+                const itemName = (item.name || '').toLowerCase();
+                const categoryName = (item.category || '').toLowerCase();
+                
+                // Exact match (highest priority)
+                if (itemName === searchLower) {
+                    searchResults.unshift({ item, score: 100 });
+                }
+                // Starts with search term (high priority)
+                else if (itemName.startsWith(searchLower)) {
+                    searchResults.push({ item, score: 80 });
+                }
+                // Contains search term (medium priority)
+                else if (itemName.includes(searchLower) || categoryName.includes(searchLower)) {
+                    searchResults.push({ item, score: 60 });
+                }
+                // Fuzzy match - check if words match
+                else {
+                    const searchWords = searchLower.split(/\s+/);
+                    const itemWords = itemName.split(/\s+/);
+                    let matchCount = 0;
+                    
+                    for (const searchWord of searchWords) {
+                        if (itemWords.some(itemWord => itemWord.includes(searchWord) || searchWord.includes(itemWord))) {
+                            matchCount++;
+                        }
+                    }
+                    
+                    // If at least 50% of words match
+                    if (matchCount >= Math.ceil(searchWords.length * 0.5)) {
+                        searchResults.push({ item, score: 40 });
+                    }
+                }
+            }
+            
+            // Sort by score and limit to 100 results
+            searchResults.sort((a, b) => b.score - a.score);
+            const finalResults = searchResults.slice(0, 100).map(result => result.item);
+            
+            if (DEBUG) console.log(`[SEARCH] Found ${finalResults.length} results for "${search}"`);
+            items = finalResults;
         }
 
-        // Sort by category then name
-        items.sort((a, b) => {
-            if (a.category !== b.category) {
-                return a.category.localeCompare(b.category);
-            }
-            return a.name.localeCompare(b.name);
-        });
-
+        // Preserve original order from IPTV server
         return items;
+    }
+
+    async searchTMDB(name, type) {
+        try {
+            // Clean the name - remove year, extra spaces, special characters
+            let cleanName = name
+                .replace(/\(\d{4}\)/g, '')
+                .replace(/\s*\(\s*\)/g, '')
+                .replace(/\s+/g, ' ')
+                .trim();
+            
+            // Try multiple search strategies
+            const searchStrategies = [
+                cleanName,  // Original name
+                cleanName.split(' ')[0],  // First word only
+                cleanName.replace(/\s*\(\s*\d+\s*\)\s*/g, '')  // Remove any remaining parentheses with numbers
+            ];
+            
+            const searchType = type === 'series' ? 'tv' : 'movie';
+            
+            for (const searchName of searchStrategies) {
+                if (!searchName || searchName.length < 2) continue;
+                
+                const url = `${TMDB_BASE_URL}/search/${searchType}?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(searchName)}&language=en-US`;
+                
+                try {
+                    const response = await fetch(url, { timeout: 5000 });
+                    const data = await response.json();
+                    
+                    if (DEBUG) console.log(`[TMDB] Search "${searchName}": Status ${response.status}, ${data.results?.length || 0} results`);
+                    
+                    if (data.results && data.results.length > 0) {
+                        // Check multiple results for IMDb ID
+                        for (let i = 0; i < Math.min(data.results.length, 5); i++) {
+                            const result = data.results[i];
+                            
+                            if (DEBUG) console.log(`[TMDB] Result #${i + 1}: "${result.title || result.name}" (ID: ${result.id}, has imdb_id: ${!!result.imdb_id})`);
+                            
+                            // For TV shows, use external_ids endpoint
+                            if (searchType === 'tv' && result.id) {
+                                const externalIdsUrl = `${TMDB_BASE_URL}/tv/${result.id}/external_ids?api_key=${TMDB_API_KEY}`;
+                                const externalIdsResponse = await fetch(externalIdsUrl, { timeout: 5000 });
+                                const externalIdsData = await externalIdsResponse.json();
+                                
+                                if (DEBUG) console.log(`[TMDB] External IDs for "${result.name}": imdb_id: ${externalIdsData.imdb_id}`);
+                                
+                                if (externalIdsData.imdb_id) {
+                                    return externalIdsData.imdb_id;
+                                }
+                            }
+                            // For movies, try full details endpoint
+                            else if (!result.imdb_id && result.id) {
+                                const detailUrl = `${TMDB_BASE_URL}/movie/${result.id}?api_key=${TMDB_API_KEY}&language=en-US`;
+                                const detailResponse = await fetch(detailUrl, { timeout: 5000 });
+                                const detailData = await detailResponse.json();
+                                
+                                if (DEBUG) console.log(`[TMDB] Full details for "${result.title}": has imdb_id: ${!!detailData.imdb_id}`);
+                                
+                                if (detailData.imdb_id) {
+                                    return detailData.imdb_id;
+                                }
+                            } else if (result.imdb_id) {
+                                return result.imdb_id;
+                            }
+                        }
+                    }
+                } catch (fetchError) {
+                    if (DEBUG) console.error(`[TMDB] Fetch error for "${searchName}":`, fetchError.message);
+                }
+            }
+            
+            return null;
+        } catch (error) {
+            if (DEBUG) console.error(`[TMDB] Error:`, error.message);
+            return null;
+        }
+    }
+
+    async fetchEpisodeImages(imdbId, season, episode) {
+        try {
+            // Check cache first
+            const cacheKey = `episode_image_${imdbId}_S${season}E${episode}`;
+            const cachedImage = this.getCachedData(cacheKey);
+            if (cachedImage) {
+                return cachedImage;
+            }
+            
+            // Get TMDB ID from IMDb ID
+            const findUrl = `${TMDB_BASE_URL}/find/${imdbId}?api_key=${TMDB_API_KEY}&external_source=imdb_id`;
+            const findResponse = await fetch(findUrl, { timeout: 5000 });
+            const findData = await findResponse.json();
+            
+            if (!findData.tv_results || findData.tv_results.length === 0) {
+                return null;
+            }
+            
+            const tmdbId = findData.tv_results[0].id;
+            
+            // Get episode images
+            const imagesUrl = `${TMDB_BASE_URL}/tv/${tmdbId}/season/${season}/episode/${episode}/images?api_key=${TMDB_API_KEY}`;
+            const imagesResponse = await fetch(imagesUrl, { timeout: 5000 });
+            const imagesData = await imagesResponse.json();
+            
+            if (imagesData.stills && imagesData.stills.length > 0) {
+                // Return the highest quality still image
+                const still = imagesData.stills[0];
+                const imageUrl = `https://image.tmdb.org/t/p/original${still.file_path}`;
+                
+                // Cache for 7 days
+                this.setCachedData(cacheKey, imageUrl);
+                
+                return imageUrl;
+            }
+            
+            return null;
+        } catch (error) {
+            if (DEBUG) console.error(`[TMDB] Error fetching episode images:`, error.message);
+            return null;
+        }
+    }
+
+    async fetchSeriesDetails(imdbId) {
+        try {
+            const cacheKey = `series_details_${imdbId}`;
+            const cachedDetails = this.getCachedData(cacheKey);
+            if (cachedDetails) {
+                return cachedDetails;
+            }
+            
+            // Get TMDB ID from IMDb ID
+            const findUrl = `${TMDB_BASE_URL}/find/${imdbId}?api_key=${TMDB_API_KEY}&external_source=imdb_id`;
+            const findResponse = await fetch(findUrl, { timeout: 5000 });
+            const findData = await findResponse.json();
+            
+            if (!findData.tv_results || findData.tv_results.length === 0) {
+                return null;
+            }
+            
+            const tmdbId = findData.tv_results[0].id;
+            
+            // Get series details
+            const detailsUrl = `${TMDB_BASE_URL}/tv/${tmdbId}?api_key=${TMDB_API_KEY}&language=en-US`;
+            const detailsResponse = await fetch(detailsUrl, { timeout: 5000 });
+            const detailsData = await detailsResponse.json();
+            
+            const seriesDetails = {
+                overview: detailsData.overview,
+                first_air_date: detailsData.first_air_date,
+                rating: detailsData.vote_average,
+                genres: detailsData.genres?.map(g => g.name) || [],
+                runtime: detailsData.episode_run_time?.[0],
+                networks: detailsData.networks?.map(n => n.name) || [],
+                status: detailsData.status
+            };
+            
+            // Cache for 24 hours
+            this.setCachedData(cacheKey, seriesDetails);
+            
+            return seriesDetails;
+        } catch (error) {
+            if (DEBUG) console.error(`[TMDB] Error fetching series details:`, error.message);
+            return null;
+        }
+    }
+
+    async fetchMovieDetails(imdbId) {
+        try {
+            const cacheKey = `movie_details_${imdbId}`;
+            const cachedDetails = this.getCachedData(cacheKey);
+            if (cachedDetails) {
+                return cachedDetails;
+            }
+            
+            // Get TMDB ID from IMDb ID
+            const findUrl = `${TMDB_BASE_URL}/find/${imdbId}?api_key=${TMDB_API_KEY}&external_source=imdb_id`;
+            const findResponse = await fetch(findUrl, { timeout: 5000 });
+            const findData = await findResponse.json();
+            
+            if (!findData.movie_results || findData.movie_results.length === 0) {
+                return null;
+            }
+            
+            const tmdbId = findData.movie_results[0].id;
+            
+            // Get movie details
+            const detailsUrl = `${TMDB_BASE_URL}/movie/${tmdbId}?api_key=${TMDB_API_KEY}&language=en-US`;
+            const detailsResponse = await fetch(detailsUrl, { timeout: 5000 });
+            const detailsData = await detailsResponse.json();
+            
+            const movieDetails = {
+                overview: detailsData.overview,
+                release_date: detailsData.release_date,
+                rating: detailsData.vote_average,
+                genres: detailsData.genres?.map(g => g.name) || [],
+                runtime: detailsData.runtime,
+                production_companies: detailsData.production_companies?.map(c => c.name) || [],
+                budget: detailsData.budget,
+                revenue: detailsData.revenue
+            };
+            
+            // Cache for 24 hours
+            this.setCachedData(cacheKey, movieDetails);
+            
+            return movieDetails;
+        } catch (error) {
+            if (DEBUG) console.error(`[TMDB] Error fetching movie details:`, error.message);
+            return null;
+        }
+    }
+
+    // Test method to verify TMDB is working
+    async testTMDB() {
+        console.log('[TMDB] Testing TMDB integration with "The Matrix"...');
+        const testId = await this.searchTMDB('The Matrix', 'movie');
+        if (testId) {
+            console.log(`[TMDB] Test PASSED - Found IMDb ID: ${testId}`);
+        } else {
+            console.log('[TMDB] Test FAILED - Could not find IMDb ID for "The Matrix"');
+        }
+        return testId;
     }
 
     generateMeta(item) {
@@ -448,11 +738,40 @@ class IPTVAddon {
 
         if (item.type === 'tv') {
             meta.poster = item.logo || `https://via.placeholder.com/300x400/333/fff?text=${encodeURIComponent(item.name)}`;
-            meta.description = `📺 Live Channel: ${item.name}`;
+            meta.description = `📺 ${item.name}`;
         } else {
+            // Enhanced metadata for movies and series
             meta.poster = item.poster || `https://via.placeholder.com/300x450/666/fff?text=${encodeURIComponent(item.name)}`;
-            meta.description = item.plot || `${item.type === 'series' ? 'TV Show' : 'Movie'}: ${item.name}`;
-            if (item.year) meta.year = item.year;
+            
+            // Extract year from name if present
+            const yearMatch = item.name.match(/\((\d{4})\)/);
+            const year = yearMatch ? yearMatch[1] : '';
+            
+            // Build detailed description
+            let descriptionParts = [];
+            
+            // Type indicator
+            descriptionParts.push(item.type === 'series' ? '📺 TV Series' : '🎬 Movie');
+            
+            // Year if available
+            if (year) {
+                descriptionParts.push(year);
+            }
+            
+            // Rating if available (from IPTV server)
+            if (item.rating) {
+                const rating = parseFloat(item.rating);
+                if (!isNaN(rating) && rating > 0) {
+                    descriptionParts.push(`⭐ ${rating}/10`);
+                }
+            }
+            
+            // Category
+            if (item.category) {
+                descriptionParts.push(`📁 ${item.category}`);
+            }
+            
+            meta.description = descriptionParts.join(' | ');
         }
 
         // For series, we'll populate episodes in the meta handler
@@ -495,7 +814,10 @@ class IPTVAddon {
             const [seriesId, season, episode] = id.split(':');
             const series = this.series.find(s => s.id === seriesId);
             
-            if (!series) return null;
+            if (!series) {
+                console.error(`[STREAM] Series not found for ID: ${seriesId}`);
+                return null;
+            }
             
             // Return a promise-based stream for episodes
             return this.getEpisodeStream(seriesId, season, episode).then(url => ({
@@ -509,7 +831,10 @@ class IPTVAddon {
         const allItems = [...this.channels, ...this.movies, ...this.series];
         const item = allItems.find(i => i.id === id);
         
-        if (!item) return null;
+        if (!item) {
+            console.error(`[STREAM] Item not found for ID: ${id}`);
+            return null;
+        }
         
         return {
             url: item.url,
@@ -528,8 +853,6 @@ module.exports = async function createAddon(config = {}) {
         id: ADDON_ID,
         version: "2.0.0",
         name: ADDON_NAME,
-        description: "Self-hosted IPTV addon with caching to reduce server load",
-        logo: "https://via.placeholder.com/256x256/4CAF50/ffffff?text=IPTV",
         resources: ["catalog", "stream", "meta"],
         types: ["tv", "movie", "series"],
         catalogs: [
@@ -538,7 +861,6 @@ module.exports = async function createAddon(config = {}) {
                 id: 'iptv_live',
                 name: 'IPTV',
                 extra: [
-                    { name: 'genre', options: ['All Channels', ...addon.categories.live] },
                     { name: 'search' },
                     { name: 'skip' }
                 ]
@@ -546,9 +868,9 @@ module.exports = async function createAddon(config = {}) {
             {
                 type: 'movie',
                 id: 'iptv_movies',
-                name: 'Movies',
+                name: 'IPTV Movies',
                 extra: [
-                    { name: 'genre', options: ['All Movies', ...addon.categories.movies] },
+                    { name: 'genre', options: ['All', ...addon.categories.movies] },
                     { name: 'search' },
                     { name: 'skip' }
                 ]
@@ -556,32 +878,40 @@ module.exports = async function createAddon(config = {}) {
             {
                 type: 'series',
                 id: 'iptv_series',
-                name: 'Series',
+                name: 'IPTV Series',
                 extra: [
-                    { name: 'genre', options: ['All Series', ...addon.categories.series] },
+                    { name: 'genre', options: ['All', ...addon.categories.series] },
                     { name: 'search' },
                     { name: 'skip' }
                 ]
             }
         ],
-        idPrefixes: ["live_", "vod_", "series_"],
-        behaviorHints: {
-            configurable: true,
-            configurationRequired: false
-        }
+        idPrefixes: ["live_", "vod_", "series_"]
     };
+
+    // Log manifest size and category counts
+    console.log('[MANIFEST] Category counts:', {
+        live: addon.categories.live.length,
+        movies: addon.categories.movies.length,
+        series: addon.categories.series.length
+    });
+    const manifestSize = JSON.stringify(manifest).length;
+    console.log('[MANIFEST] Size:', manifestSize, 'bytes (limit: 8192 bytes)');
+    if (manifestSize > 8192) {
+        console.warn('[MANIFEST] WARNING: Manifest exceeds 8KB limit!');
+    }
 
     const builder = new addonBuilder(manifest);
 
     builder.defineCatalogHandler(async (args) => {
         const { type, id, extra = {} } = args;
-        console.log(`[CATALOG] Request: type=${type}, id=${id}, genre=${extra.genre}, search=${extra.search}`);
+        if (DEBUG) console.log(`[CATALOG] Request: type=${type}, id=${id}`);
         
         const items = addon.getCatalogItems(type, extra.genre, extra.search);
         const skip = parseInt(extra.skip) || 0;
         const metas = items.slice(skip, skip + 100).map(item => addon.generateMeta(item));
         
-        console.log(`[CATALOG] Returning ${metas.length} items for ${type}/${id}`);
+        if (DEBUG) console.log(`[CATALOG] Returning ${metas.length} items for ${type}/${id}`);
         return { metas };
     });
 
@@ -596,18 +926,102 @@ module.exports = async function createAddon(config = {}) {
     });
 
     builder.defineMetaHandler(async (args) => {
-        console.log(`[META] Request for ID: ${args.id}, type: ${args.type}`);
+        if (DEBUG) console.log(`[META] Request for ID: ${args.id}, type: ${args.type}`);
         
         const allItems = [...addon.channels, ...addon.movies, ...addon.series];
         const item = allItems.find(i => i.id === args.id);
         
         if (!item) {
-            console.log(`[META] No item found for ID: ${args.id}`);
+            if (DEBUG) console.log(`[META] No item found for ID: ${args.id}`);
             return { meta: null };
         }
         
-        console.log(`[META] Found item: ${item.name}, type: ${item.type}`);
         const meta = addon.generateMeta(item);
+        
+        // Search TMDB for IMDb ID (for movies and series only)
+        if (item.type === 'movie' || item.type === 'series') {
+            try {
+                // Check cache first
+                const tmdbCacheKey = `tmdb_${item.name}_${item.type}`;
+                const cachedImdbId = addon.getCachedData(tmdbCacheKey);
+                
+                if (cachedImdbId) {
+                    console.log(`[TMDB] ✓ Cached: ${cachedImdbId} for "${item.name}"`);
+                    meta.imdb_id = cachedImdbId;
+                } else {
+                    // Search TMDB for IMDb ID
+                    const imdbId = await addon.searchTMDB(item.name, item.type);
+                    if (imdbId) {
+                        meta.imdb_id = imdbId;
+                        // Cache the result for 24 hours
+                        addon.setCachedData(tmdbCacheKey, imdbId);
+                        console.log(`[TMDB] ✓ Found: ${imdbId} for "${item.name}"`);
+                    } else {
+                        console.log(`[TMDB] ✗ No IMDb ID for "${item.name}"`);
+                    }
+                }
+                
+                // For movies, fetch additional details from TMDB
+                if (item.type === 'movie' && meta.imdb_id) {
+                    try {
+                        const movieDetails = await addon.fetchMovieDetails(meta.imdb_id);
+                        if (movieDetails) {
+                            // Enhance metadata with movie details
+                            if (movieDetails.overview) {
+                                const overview = movieDetails.overview.substring(0, 200);
+                                meta.description = `🎬 ${item.name} | ${overview}...`;
+                            }
+                            if (movieDetails.rating) {
+                                meta.description += ` | ⭐ ${movieDetails.rating.toFixed(1)}/10`;
+                            }
+                            if (movieDetails.genres && movieDetails.genres.length > 0) {
+                                meta.genres = movieDetails.genres.slice(0, 3);
+                            }
+                            if (movieDetails.runtime) {
+                                meta.description += ` | ⏱️ ${movieDetails.runtime}min`;
+                            }
+                            if (movieDetails.release_date) {
+                                const year = movieDetails.release_date.substring(0, 4);
+                                meta.description = meta.description.replace(year, '').trim();
+                                meta.description += ` | ${year}`;
+                            }
+                        }
+                    } catch (error) {
+                        if (DEBUG) console.error(`[TMDB] Error fetching movie details:`, error.message);
+                    }
+                }
+                
+                // For series, fetch additional details from TMDB
+                if (item.type === 'series' && meta.imdb_id) {
+                    try {
+                        const seriesDetails = await addon.fetchSeriesDetails(meta.imdb_id);
+                        if (seriesDetails) {
+                            // Enhance metadata with series details
+                            if (seriesDetails.overview && !meta.description.includes('📺')) {
+                                const overview = seriesDetails.overview.substring(0, 200);
+                                meta.description = `📺 ${item.name} | ${overview}...`;
+                            }
+                            if (seriesDetails.rating) {
+                                meta.description += ` | ⭐ ${seriesDetails.rating.toFixed(1)}/10`;
+                            }
+                            if (seriesDetails.genres && seriesDetails.genres.length > 0) {
+                                meta.genres = seriesDetails.genres.slice(0, 3);
+                            }
+                            if (seriesDetails.runtime) {
+                                meta.description += ` | ⏱️ ${seriesDetails.runtime}min`;
+                            }
+                            if (seriesDetails.status) {
+                                meta.description += ` | ${seriesDetails.status}`;
+                            }
+                        }
+                    } catch (error) {
+                        if (DEBUG) console.error(`[TMDB] Error fetching series details:`, error.message);
+                    }
+                }
+            } catch (error) {
+                console.error(`[TMDB] Error:`, error.message);
+            }
+        }
         
         // For series, fetch actual episodes from Xtream API
         if (item.type === 'series') {
@@ -615,11 +1029,8 @@ module.exports = async function createAddon(config = {}) {
                 const seriesId = item.id.replace('series_', '');
                 const episodeUrl = `${addon.config.xtreamUrl}/player_api.php?username=${addon.config.xtreamUsername}&password=${addon.config.xtreamPassword}&action=get_series_info&series_id=${seriesId}`;
                 
-                console.log(`[SERIES] Fetching episodes for series ${seriesId}`);
                 const response = await fetch(episodeUrl, { timeout: 10000 });
                 const seriesInfo = await response.json();
-                
-                console.log(`[SERIES] Series info response:`, JSON.stringify(seriesInfo, null, 2));
                 
                 if (seriesInfo && seriesInfo.episodes) {
                     const videos = [];
@@ -634,7 +1045,7 @@ module.exports = async function createAddon(config = {}) {
                                     title: episode.title || `Episode ${episode.episode_num}`,
                                     season: parseInt(seasonNum),
                                     episode: parseInt(episode.episode_num),
-                                    overview: `Season ${seasonNum} Episode ${episode.episode_num}`,
+                                    overview: episode.plot || episode.info?.movie_image ? `Season ${seasonNum} Episode ${episode.episode_num}` : `Season ${seasonNum} Episode ${episode.episode_num}`,
                                     thumbnail: episode.info?.movie_image,
                                     released: episode.air_date,
                                     duration: episode.info?.duration_secs
@@ -649,12 +1060,25 @@ module.exports = async function createAddon(config = {}) {
                         return a.episode - b.episode;
                     });
                     
+                    // Fetch episode images from TMDB if we have IMDb ID
+                    if (meta.imdb_id) {
+                        for (const video of videos) {
+                            try {
+                                const episodeImage = await addon.fetchEpisodeImages(meta.imdb_id, video.season, video.episode);
+                                if (episodeImage) {
+                                    video.thumbnail = episodeImage;
+                                    if (DEBUG) console.log(`[TMDB] ✓ Episode image for S${video.season}E${video.episode}`);
+                                }
+                            } catch (error) {
+                                if (DEBUG) console.error(`[TMDB] Error fetching episode image for S${video.season}E${video.episode}:`, error.message);
+                            }
+                        }
+                    }
+                    
                     meta.videos = videos;
                     
-                    console.log(`[SERIES] Processed ${meta.videos.length} episodes for ${item.name}`);
-                    console.log(`[SERIES] Sample episodes:`, meta.videos.slice(0, 3).map(v => `${v.title} (S${v.season}E${v.episode})`));
+                    if (DEBUG) console.log(`[SERIES] Processed ${meta.videos.length} episodes for ${item.name}`);
                 } else {
-                    console.log(`[SERIES] No episodes found for series ${seriesId}`);
                     // Add placeholder if no episodes found
                     meta.videos = [{
                         id: `${item.id}:1:1`,
@@ -665,7 +1089,7 @@ module.exports = async function createAddon(config = {}) {
                     }];
                 }
             } catch (error) {
-                console.error(`[SERIES] Error fetching episodes for ${item.name}:`, error.message);
+                if (DEBUG) console.error(`[SERIES] Error:`, error.message);
                 // Add placeholder on error
                 meta.videos = [{
                     id: `${item.id}:1:1`,
@@ -677,7 +1101,7 @@ module.exports = async function createAddon(config = {}) {
             }
         }
         
-        console.log(`[META] Returning meta for ${item.name}:`, JSON.stringify(meta, null, 2));
+        if (DEBUG) console.log(`[META] Returning meta for ${item.name}`);
         return { meta };
     });
 
