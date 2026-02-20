@@ -849,8 +849,8 @@ module.exports = async function createAddon(config = {}) {
     const addon = new IPTVAddon(config);
     await addon.init();
 
-    // Sort categories alphabetically for consistent display
-    const sortedLiveCategories = [...addon.categories.live].sort((a, b) => a.localeCompare(b));
+    // Sort movie and series categories alphabetically for consistent display
+    // Note: Live TV categories are not included in genre options as they often exceed the 8KB manifest limit
     const sortedMovieCategories = [...addon.categories.movies].sort((a, b) => a.localeCompare(b));
     const sortedSeriesCategories = [...addon.categories.series].sort((a, b) => a.localeCompare(b));
 
@@ -866,7 +866,6 @@ module.exports = async function createAddon(config = {}) {
                 id: 'iptv_live',
                 name: 'IPTV',
                 extra: [
-                    { name: 'genre', options: ['All', ...sortedLiveCategories] },
                     { name: 'search' },
                     { name: 'skip' }
                 ]
