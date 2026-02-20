@@ -849,6 +849,11 @@ module.exports = async function createAddon(config = {}) {
     const addon = new IPTVAddon(config);
     await addon.init();
 
+    // Sort categories alphabetically for consistent display
+    const sortedLiveCategories = [...addon.categories.live].sort((a, b) => a.localeCompare(b));
+    const sortedMovieCategories = [...addon.categories.movies].sort((a, b) => a.localeCompare(b));
+    const sortedSeriesCategories = [...addon.categories.series].sort((a, b) => a.localeCompare(b));
+
     const manifest = {
         id: ADDON_ID,
         version: "2.0.0",
@@ -861,6 +866,7 @@ module.exports = async function createAddon(config = {}) {
                 id: 'iptv_live',
                 name: 'IPTV',
                 extra: [
+                    { name: 'genre', options: ['All', ...sortedLiveCategories] },
                     { name: 'search' },
                     { name: 'skip' }
                 ]
@@ -870,7 +876,7 @@ module.exports = async function createAddon(config = {}) {
                 id: 'iptv_movies',
                 name: 'IPTV Movies',
                 extra: [
-                    { name: 'genre', options: ['All', ...addon.categories.movies] },
+                    { name: 'genre', options: ['All', ...sortedMovieCategories] },
                     { name: 'search' },
                     { name: 'skip' }
                 ]
@@ -880,7 +886,7 @@ module.exports = async function createAddon(config = {}) {
                 id: 'iptv_series',
                 name: 'IPTV Series',
                 extra: [
-                    { name: 'genre', options: ['All', ...addon.categories.series] },
+                    { name: 'genre', options: ['All', ...sortedSeriesCategories] },
                     { name: 'search' },
                     { name: 'skip' }
                 ]
