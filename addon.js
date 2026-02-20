@@ -849,11 +849,6 @@ module.exports = async function createAddon(config = {}) {
     const addon = new IPTVAddon(config);
     await addon.init();
 
-    // Sort movie and series categories alphabetically for consistent display
-    // Note: Live TV categories are not included in genre options as they often exceed the 8KB manifest limit
-    const sortedMovieCategories = [...addon.categories.movies].sort((a, b) => a.localeCompare(b));
-    const sortedSeriesCategories = [...addon.categories.series].sort((a, b) => a.localeCompare(b));
-
     const manifest = {
         id: ADDON_ID,
         version: "2.0.0",
@@ -875,7 +870,7 @@ module.exports = async function createAddon(config = {}) {
                 id: 'iptv_movies',
                 name: 'IPTV Movies',
                 extra: [
-                    { name: 'genre', options: ['All', ...sortedMovieCategories] },
+                    { name: 'genre', options: ['All', ...addon.categories.movies] },
                     { name: 'search' },
                     { name: 'skip' }
                 ]
@@ -885,7 +880,7 @@ module.exports = async function createAddon(config = {}) {
                 id: 'iptv_series',
                 name: 'IPTV Series',
                 extra: [
-                    { name: 'genre', options: ['All', ...sortedSeriesCategories] },
+                    { name: 'genre', options: ['All', ...addon.categories.series] },
                     { name: 'search' },
                     { name: 'skip' }
                 ]
